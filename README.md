@@ -1,77 +1,53 @@
-# Secure-Voting-Platform-Demo
-✅ Voting Platform Security Requirements
-🔐 Voting-Specific Security Controls
+# ✅ Voting Platform Security Requirements
 
-Secure Voter Access
+## 🔐 Voting-Specific Security Controls
 
-Only registered voters can access the platform.
+- **Registered Voter Access**
+  - System shall ensure only registered voters can access the platform.
 
-Audit Logging
+- **Audit Logging**
+  - Read-only audit logs (system-generated).
 
-System-generated, read-only audit logs.
+- **Authentication Controls**
+  - 30-minute lockout after 3 failed login attempts.
+  - Session timeout after 5 minutes of inactivity.
+  - Password hashing and salting.
+  - CAPTCHA to prevent automated access.
 
-Authentication Protections
+- **Voting Integrity**
+  - One vote per user per election (multi-voting disabled).
+  - RBAC (Role-Based Access Control).
 
-Account lockout for 30 minutes after 3 failed login attempts.
+- **Voter Privacy**
+  - Privacy of voter data ensured.
 
-Session timeout: 5 minutes of inactivity.
+- **Planned / Optional Controls**
+  - `// IP blacklisting`
+  - `// End-to-end encryption during vote transmission`
+  - `// SMS security with cryptographic user parameters`
 
-Password hashing + salting for user credentials.
+---
 
-CAPTCHA to prevent bot-based access.
+## 🛠 Development-Specific Security Controls
 
-Authorization & Voting Integrity
+- **Database & Access Restrictions**
+  - Database role restriction.
+  - Enforce access control logic when users attempt to access resources.
 
-One vote per user per election (multi-voting prevention).
+- **Secure Coding Practices**
+  - Input validation on all endpoints.
+  - Never hardcode secrets/passwords/API keys in workflow files.
 
-RBAC (Role-Based Access Control).
+- **Code Review & Version Control**
+  - Code documentation and review in commits.
+  - Sign all commits and validate commit origins.
 
-Privacy & Data Security
+- **Testing**
+  - Unit test cases implemented.
 
-Protection of voter identities and sensitive data.
+- **Planned / Optional DevSecOps Measures**
+  - `// Firewall — Docker network setup`
+  - `// DevOps pipeline — Unit tests & static code analysis for vulnerabilities`
+  - `// SKS — RSA key security`
 
-(Commented Requirement) IP blacklisting.
-
-(Commented Requirement) End-to-end encryption for vote transmission.
-
-(Commented Requirement) SMS delivery using secure cryptographic parameters.
-
-🛠 Development-Specific Security Controls
-
-Database & Access
-
-Database role restrictions.
-
-Enforced access control logic (users cannot access unauthorized resources).
-
-Secure Coding Practices
-
-Input validation on all endpoints.
-
-No hardcoded secrets or credentials (API keys, passwords, etc.).
-
-Commit & Code Management
-
-Code documentation and peer review.
-
-All commits must be:
-
-Signed
-
-Origin-validated
-
-Testing & Quality
-
-Unit test cases implemented and maintained.
-
-DevSecOps / Infrastructure (Commented/Future Items)
-
-(Commented Requirement) Docker network setup with firewall rules.
-
-(Commented Requirement) DevOps pipeline with:
-
-Static code analysis for vulnerabilities
-
-Automated unit tests
-
-(Commented Requirement) SKS / RSA key security hardening
+---
