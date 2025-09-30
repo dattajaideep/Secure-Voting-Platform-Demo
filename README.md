@@ -3,51 +3,49 @@
 ## 🔐 Voting-Specific Security Controls
 
 - **Registered Voter Access**
-  - System shall ensure only registered voters can access the platform.
+  - System shall ensure only registered voters can access the platform. -- YES
 
 - **Audit Logging**
-  - Read-only audit logs (system-generated).
+  - Read-only audit logs (system-generated). -- YES
 
 - **Authentication Controls**
-  - 30-minute lockout after 3 failed login attempts.
-  - Session timeout after 5 minutes of inactivity.
-  - Password hashing and salting.
-  - CAPTCHA to prevent automated access.
+  - 30-minute lockout after 3 failed login attempts. -- YES
+  - Session timeout after 5 minutes of inactivity. -- YES
+  - Password hashing and salting. -- YES
+  - CAPTCHA to prevent automated access. -- YES
 
 - **Voting Integrity**
-  - One vote per user per election (multi-voting disabled).
-  - RBAC (Role-Based Access Control).
+  - One vote per user per election (multi-voting disabled). -- YES
+  - RBAC (Role-Based Access Control). -- YES
 
 - **Voter Privacy**
-  - Privacy of voter data ensured.
+  - Privacy of voter data ensured. -- YES
 
 - **Planned / Optional Controls**
-  - `// IP blacklisting`
-  - `// End-to-end encryption during vote transmission`
-  - `// SMS security with cryptographic user parameters`
+  - `// IP blacklisting` -- YES
+  - `// End-to-end encryption during vote transmission` -- Maybe with SKS RSA
+  - `// SMS security with cryptographic user parameters` -- FLOP
 
 ---
 
 ## 🛠 Development-Specific Security Controls
 
 - **Database & Access Restrictions**
-  - Database role restriction.
-  - Enforce access control logic when users attempt to access resources.
+  - Database role restriction.Enforce access control logic when users attempt to access resources.
 
 - **Secure Coding Practices**
-  - Input validation on all endpoints.
-  - Never hardcode secrets/passwords/API keys in workflow files.
+  - Input validation on all endpoints. -- YES
+  - Never hardcode secrets/passwords/API keys in workflow files. -- YES
 
 - **Code Review & Version Control**
-  - Code documentation and review in commits.
-  - Sign all commits and validate commit origins.
+  - Code documentation and review in commits.Sign all commits and validate commit origins.  -- YES
 
 - **Testing**
-  - Unit test cases implemented.
+  - Security Unit test cases implemented. -- YES
 
 - **Planned / Optional DevSecOps Measures**
-  - `// Firewall — Docker network setup`
-  - `// DevOps pipeline — Unit tests & static code analysis for vulnerabilities`
-  - `// SKS — RSA key security`
+  - `// Firewall — Docker network setup` -- YES
+  - `// DevOps pipeline — Unit tests & static code analysis for vulnerabilities` -- YES
+  - `// SKS — RSA key security` -- Maybe
 
 ---
