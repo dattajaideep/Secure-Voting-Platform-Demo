@@ -1,0 +1,14 @@
+{
+  "name": "main-branch-protection",
+  "target": "main",
+  "protection": {
+    "allowForcePushes": false,
+    "allowDeletions": false,
+    "requireLinearHistory": true,
+    "requirePullRequest": true,
+    "requiredApprovingReviewCount": 1,
+    "dismissStaleReviews": true,
+    "requireCodeOwnerReviews": true,
+    "requireStatusChecks": true
+  }
+}
