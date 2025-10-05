@@ -46,6 +46,6 @@
 - **Planned / Optional DevSecOps Measures**
   - `// Firewall — Docker network setup` -- YES
   - `// DevOps pipeline — Unit tests & static code analysis for vulnerabilities` -- YES
-  - `// SKS — RSA key security` -- Yes -- But need a new Backend for KeyManagement
+  - `// SKS — RSA key security` -- Yes -- But need a new backend for key management
 
 ---
