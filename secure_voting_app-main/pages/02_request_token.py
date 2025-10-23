@@ -6,12 +6,20 @@ from services.voting_authority import VotingAuthority
 from db.repositories import VoterRepository
 from utils.logger import add_log
 from db.connection import get_conn
+from utils.session_manager import check_session_timeout, update_last_activity
 
 
 st.title("2️⃣ Request Blind Token")
 
+# Check for session timeout
+check_session_timeout()
+
 voter_repo = VoterRepository()
 authority = VotingAuthority(get_conn())
+
+# Update activity timestamp if user is logged in
+if 'user_email' in st.session_state:
+    update_last_activity()
 
 voters = voter_repo.get_all_voters()
 voter_options = [v["voter_id"] for v in voters if not v["has_token"]]

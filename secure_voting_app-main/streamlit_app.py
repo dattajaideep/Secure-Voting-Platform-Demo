@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 from utils.roles import is_admin, is_logged_in, get_user_role
 import os
 from datetime import datetime
+from utils.session_manager import check_session_timeout, update_last_activity
 
 
 # --- Load environment variables (Google OAuth credentials) ---
@@ -31,14 +32,49 @@ init_db()
 
 # --- Streamlit Config ---
 st.set_page_config(page_title="Secure Voting System", page_icon="🗳️", layout="wide")
+
+# Add custom CSS for timeout popup
+st.markdown("""
+<style>
+    .timeout-popup {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background-color: white;
+        padding: 20px;
+        border-radius: 10px;
+        box-shadow: 0 0 20px rgba(0,0,0,0.2);
+        z-index: 999;
+        text-align: center;
+    }
+    .timeout-popup h3 {
+        color: #ff4b4b;
+        margin-bottom: 10px;
+    }
+    .timeout-popup p {
+        margin: 10px 0;
+    }
+    .stButton button {
+        margin: 10px auto;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 st.title("Secure Voting System with Google OAuth + SQLite")
 
 # --- Sidebar: Show login status and role ---
 if is_logged_in():
+    # Check for session timeout
+    check_session_timeout()
+    
     if is_admin():
         st.sidebar.success(f"🔑 Admin: {st.session_state.user_email}")
     else:
         st.sidebar.success(f"👤 User: {st.session_state.user_email}")
+    
+    # Update last activity timestamp
+    update_last_activity()
     
     # Logout button (only show if logged in)
     if st.sidebar.button("Logout"):

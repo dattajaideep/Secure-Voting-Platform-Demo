@@ -1,14 +1,22 @@
 # pages/04_mixnet.py
 import streamlit as st
-from utils.roles import require_admin  # ← ADD THIS IMPORT
+from utils.roles import require_admin
 from services.mixnet import VerifiableMixNet
 from db.repositories import BallotRepository, MixNetRepository
 from utils.logger import add_log
+from utils.session_manager import check_session_timeout, update_last_activity
 
-# ← ADD THIS LINE (must be first, before any other st. commands)
+# Check for session timeout before requiring admin
+check_session_timeout()
+
+# Require admin access
 require_admin()
 
 st.title("4️⃣ MixNet Anonymization")
+
+# Update activity timestamp if user is logged in
+if 'user_email' in st.session_state:
+    update_last_activity()
 
 ballot_repo = BallotRepository()
 mixnet_repo = MixNetRepository()

@@ -6,13 +6,21 @@ from services.voting_authority import VotingAuthority
 from db.repositories import VoterRepository, TokenRepository, BallotRepository
 from utils.logger import add_log
 from db.connection import get_conn
+from utils.session_manager import check_session_timeout, update_last_activity
 
 st.title("3️⃣ Cast Vote")
+
+# Check for session timeout
+check_session_timeout()
 
 voter_repo = VoterRepository()
 token_repo = TokenRepository()
 ballot_repo = BallotRepository()
 authority = VotingAuthority(get_conn())
+
+# Update activity timestamp if user is logged in
+if 'user_email' in st.session_state:
+    update_last_activity()
 
 voters = [v for v in voter_repo.get_all_voters() if v["has_token"] and not v["has_voted"]]
 voter_options = [v["voter_id"] for v in voters]

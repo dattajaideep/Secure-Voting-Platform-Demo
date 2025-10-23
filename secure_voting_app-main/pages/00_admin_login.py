@@ -2,11 +2,16 @@
 import streamlit as st
 from utils.roles import admin_login, is_admin
 from utils.logger import add_log
+from utils.session_manager import check_session_timeout, update_last_activity
 
 st.title("🔐 Admin Login")
 
+# Check for session timeout
+check_session_timeout()
+
 # If already logged in as admin, show status
 if is_admin():
+    update_last_activity()
     st.success(f"✅ Already logged in as Administrator")
     st.info("Navigate to admin pages using the sidebar")
 else:

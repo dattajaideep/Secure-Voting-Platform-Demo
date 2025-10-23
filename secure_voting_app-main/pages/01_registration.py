@@ -5,10 +5,18 @@ from utils.logger import add_log
 from auth.oauth import oauth2, OAUTH_REDIRECT_URI
 from utils.otp_service import generate_otp, send_otp_email
 from datetime import datetime, timedelta
+from utils.session_manager import check_session_timeout, update_last_activity
 
 st.title("1️⃣ Voter Access Portal")
 
+# Check for session timeout
+check_session_timeout()
+
 voter_repo = VoterRepository()
+
+# Update activity timestamp if user is logged in
+if 'user_email' in st.session_state:
+    update_last_activity()
 
 # --- Choose action: Register or Login ---
 action = st.radio(

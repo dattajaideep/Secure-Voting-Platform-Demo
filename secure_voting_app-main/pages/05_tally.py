@@ -3,12 +3,20 @@
 import streamlit as st
 from db.repositories import BallotRepository
 from utils.logger import add_log
-from utils.roles import require_admin  # ← ADD THIS IMPORT
+from utils.roles import require_admin
+from utils.session_manager import check_session_timeout, update_last_activity
 
-# ← ADD THIS LINE (must be first, before any other st. commands)
+# Check for session timeout before requiring admin
+check_session_timeout()
+
+# Require admin access
 require_admin()
 
 st.title("5️⃣ Tally Results")
+
+# Update activity timestamp if user is logged in
+if 'user_email' in st.session_state:
+    update_last_activity()
 ballot_repo = BallotRepository()
 ballots = ballot_repo.get_all_ballots()
 if not ballots:
