@@ -16,7 +16,8 @@ def verify_schema_integrity():
         "ballots": ["ballot_id", "candidate"],
         "tokens": ["id", "voter_id", "token_hash", "signature", "issued_at"],
         "logs": ["id", "message", "log_type", "created_at"],
-        "mixnet_proofs": ["id", "layer", "input_count", "output_count", "proof_hash"]
+        "mixnet_proofs": ["id", "layer", "input_count", "output_count", "proof_hash"],
+        "login_attempts": ["id", "email", "attempt_count", "last_attempt_time", "lockout_until", "created_at"]
     }
     
     for table_name, required_cols in required_schema.items():
@@ -147,6 +148,17 @@ def init_db():
             signature TEXT NOT NULL,
             issued_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY(voter_id) REFERENCES voters(voter_id)
+        )
+    """)
+    
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS login_attempts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT NOT NULL UNIQUE,
+            attempt_count INTEGER DEFAULT 1,
+            last_attempt_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            lockout_until TIMESTAMP NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
     

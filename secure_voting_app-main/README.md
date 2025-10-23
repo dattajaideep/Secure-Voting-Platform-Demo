@@ -114,6 +114,10 @@ ADMIN_PASSWORD=secure_password_here
 
 # Database
 DATABASE_PATH=voting_system.db
+
+# Authentication Security
+MAX_LOGIN_ATTEMPTS=3       # Maximum failed login attempts before lockout
+LOGIN_LOCKOUT_MINUTES=30   # Duration of account lockout in minutes
 ```
 
 5. **Run the application**

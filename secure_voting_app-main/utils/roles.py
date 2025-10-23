@@ -130,8 +130,29 @@ def get_user_role():
 
 
 def admin_login(email, password):
-    """Verify admin credentials and set admin session"""
-    if email == ADMIN_EMAIL and password == ADMIN_PASSWORD:
+    """
+    Verify admin credentials and set admin session
+    
+    Args:
+        email: Admin email to verify
+        password: Admin password to verify
+        
+    Returns:
+        bool: True if login successful, False otherwise
+    """
+    # Load credentials in case they were updated
+    load_dotenv()
+    
+    # Get current admin credentials
+    admin_email = os.getenv("ADMIN_EMAIL")
+    admin_password = os.getenv("ADMIN_PASSWORD")
+    
+    # Verify both email and password match exactly
+    if not all([admin_email, admin_password]):
+        return False
+        
+    if email == admin_email and password == admin_password:
+        # Set session state for admin
         st.session_state.user_email = email
         st.session_state.user_name = "Administrator"
         st.session_state.role = "admin"

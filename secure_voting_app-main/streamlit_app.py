@@ -27,7 +27,7 @@ VALID_PAGES = [
 # --- Local project imports ---
 from db.init_db import init_db
 from db.connection import get_conn
-from db.repositories.voter_repository import VoterRepository
+# from db.repositories.voter_repository import VoterRepository
 from db.repositories.ballot_repository import BallotRepository
 from db.repositories.mixnet_repository import MixNetRepository
 from db.repositories.log_repository import LogRepository
