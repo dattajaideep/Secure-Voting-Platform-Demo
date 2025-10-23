@@ -12,6 +12,17 @@ load_dotenv()
 OAUTH_CLIENT_ID = os.getenv("OAUTH_CLIENT_ID")
 OAUTH_CLIENT_SECRET = os.getenv("OAUTH_CLIENT_SECRET")
 
+# --- Define Available Pages ---
+VALID_PAGES = [
+    "Home",
+    "Register Voter",
+    "Request Token",
+    "Cast Vote",
+    "Mix Network",
+    "Tally Results",
+    "Logs"
+]
+
 
 # --- Local project imports ---
 from db.init_db import init_db
@@ -25,6 +36,26 @@ from utils.roles import is_admin, is_logged_in, get_user_role  # ← ADD THIS
 from services.voting_authority import VotingAuthority
 from services.voter_client import VoterClient
 from services.mixnet import VerifiableMixNet
+
+
+# --- 404 Error Handler Function ---
+def handle_404_error(requested_page):
+    """Display 404 error page for invalid routes"""
+    st.error("❌ 404: Page Not Found", icon="🚫")
+    st.markdown(f"""
+    ### Oops! The page **"{requested_page}"** does not exist.
+    
+    Please select a valid page from the navigation menu on the left.
+    """)
+    
+    st.markdown("### 📋 Available Pages:")
+    cols = st.columns(2)
+    for idx, page in enumerate(VALID_PAGES):
+        with cols[idx % 2]:
+            st.button(f"Go to {page}", key=f"navigate_{idx}")
+    
+    st.markdown("---")
+    st.info("💡 **Tip:** Use the sidebar radio menu to navigate between pages.")
 
 
 # --- Initialize database tables automatically ---
@@ -101,8 +132,13 @@ mixnet = VerifiableMixNet()
 # --- Navigation Sidebar ---
 menu = st.sidebar.radio(
     "Navigate",
-    ["Home", "Register Voter", "Request Token", "Cast Vote", "Mix Network", "Tally Results", "Logs"]
+    VALID_PAGES
 )
+
+# --- Validate Selected Page (404 Handler) ---
+if menu not in VALID_PAGES:
+    handle_404_error(menu)
+    st.stop()  # Stop execution if page is invalid
 
 
 # --- Page: Home ---
