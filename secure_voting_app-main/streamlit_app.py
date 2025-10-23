@@ -39,11 +39,11 @@ from services.mixnet import VerifiableMixNet
 
 
 # --- 404 Error Handler Function ---
-def handle_404_error(requested_page):
-    """Display 404 error page for invalid routes"""
+def handle_404_error():
+    """Display 404 error page for invalid routes - no sensitive information disclosed"""
     st.error("❌ 404: Page Not Found", icon="🚫")
-    st.markdown(f"""
-    ### Oops! The page **"{requested_page}"** does not exist.
+    st.markdown("""
+    ### Oops! The requested page could not be found.
     
     Please select a valid page from the navigation menu on the left.
     """)
