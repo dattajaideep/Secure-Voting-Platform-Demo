@@ -52,7 +52,9 @@ def handle_404_error(requested_page):
     cols = st.columns(2)
     for idx, page in enumerate(VALID_PAGES):
         with cols[idx % 2]:
-            st.button(f"Go to {page}", key=f"navigate_{idx}")
+            if st.button(f"Go to {page}", key=f"navigate_{idx}"):
+                st.session_state["current_page"] = page
+                st.rerun()
     
     st.markdown("---")
     st.info("💡 **Tip:** Use the sidebar radio menu to navigate between pages.")
@@ -134,11 +136,6 @@ menu = st.sidebar.radio(
     "Navigate",
     VALID_PAGES
 )
-
-# --- Validate Selected Page (404 Handler) ---
-if menu not in VALID_PAGES:
-    handle_404_error(menu)
-    st.stop()  # Stop execution if page is invalid
 
 
 # --- Page: Home ---
