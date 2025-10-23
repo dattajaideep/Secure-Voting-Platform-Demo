@@ -54,17 +54,32 @@ def init_db():
             add_log("Migrated tokens table schema (removed old structure)", "info")
             tokens_needs_recreation = True
     
-    # Check voters table for missing columns
+    # Check voters table for missing columns and update schema if needed
     cur.execute("PRAGMA table_info(voters)")
     voters_info = cur.fetchall()
+    
     if voters_info:
         col_names = [col[1] for col in voters_info]
-        if "has_token" not in col_names:
-            cur.execute("ALTER TABLE voters ADD COLUMN has_token INTEGER DEFAULT 0")
-            add_log("Added has_token column to voters", "info")
-        if "has_voted" not in col_names:
-            cur.execute("ALTER TABLE voters ADD COLUMN has_voted INTEGER DEFAULT 0")
-            add_log("Added has_voted column to voters", "info")
+        
+        # Add missing columns if they don't exist
+        required_columns = {
+            "has_token": "INTEGER DEFAULT 0",
+            "has_voted": "INTEGER DEFAULT 0",
+            "password_hash": "TEXT",
+            "password_salt": "TEXT"
+        }
+        
+        for col_name, col_type in required_columns.items():
+            if col_name not in col_names:
+                try:
+                    cur.execute(f"ALTER TABLE voters ADD COLUMN {col_name} {col_type}")
+                    add_log(f"Added {col_name} column to voters", "info")
+                except Exception as e:
+                    add_log(f"Error adding column {col_name}: {str(e)}", "error")
+                    raise RuntimeError(f"Failed to add column {col_name} to voters table")
+    else:
+        # If voters table doesn't exist, it will be created with all columns in the CREATE TABLE statement below
+        add_log("Voters table not found, will be created with full schema", "info")
     
     # Check ballots table for correct schema
     cur.execute("PRAGMA table_info(ballots)")
