@@ -322,7 +322,7 @@ def render_request_token():
 def render_cast_vote():
     st.header("Cast Vote")
     st.markdown("""
-    Cast your vote securely and anonymously. You can only vote once, so choose your candidate carefully.
+    Cast your vote securely and anonymously. **You can only vote once**, so choose your candidate carefully.
     Your vote will be cryptographically protected and anonymized through the MixNet process.
     """)
     
@@ -345,21 +345,33 @@ def render_cast_vote():
         with col2:
             candidate = st.selectbox("Select Candidate", candidates)
         
-        st.info("💡 **Reminder:** This action cannot be undone. Ensure you have selected the correct candidate.")
+        st.info("💡 **Reminder:** This action cannot be undone. Ensure you have selected the correct candidate. You will only be allowed to vote once.")
         
         if st.button("Submit Vote", type="primary"):
             try:
-                client = VoterClient(authority)
-                token_data = client.token_repo.get_token_by_voter(voter_id)
-                signature = int(token_data["signature"], 16)
-                token_hash = token_data["token_hash"]
-                ballot_id = client.cast_vote(token_hash, signature, candidate)
-                voter_repo.mark_voted(voter_id)
-                add_log(f"{eligible[voter_id]} voted for {candidate}", "success")
-                st.success(f"✅ **Vote Submitted Successfully!**\n\nYour vote for **{candidate}** has been recorded securely.")
+                # Additional verification: Check voter hasn't already voted (race condition prevention)
+                if voter_repo.has_voter_voted(voter_id):
+                    st.error("❌ **Vote Already Cast**")
+                    st.warning(f"This voter has already cast their vote. One vote per voter is permitted.")
+                    add_log(f"Attempted multi-vote by {eligible[voter_id]}", "warning")
+                else:
+                    client = VoterClient(authority)
+                    token_data = client.token_repo.get_token_by_voter(voter_id)
+                    signature = int(token_data["signature"], 16)
+                    token_hash = token_data["token_hash"]
+                    ballot_id = client.cast_vote(token_hash, signature, candidate)
+                    add_log(f"{eligible[voter_id]} voted for {candidate}", "success")
+                    st.success(f"✅ **Vote Submitted Successfully!**\n\nYour vote for **{candidate}** has been recorded securely.")
             except Exception as e:
-                st.error("❌ **Vote Submission Failed**", icon="⚠️")
-                st.warning("An error occurred while processing your vote. Please try again or contact an administrator.")
+                error_message = str(e)
+                if "already cast" in error_message.lower() or "one vote" in error_message.lower():
+                    st.error("❌ **Multi-Vote Detected**", icon="⚠️")
+                    st.warning("Each voter can only cast one vote. This vote has been rejected.")
+                    add_log(f"Multi-vote attempt blocked for voter {voter_id}: {error_message}", "warning")
+                else:
+                    st.error("❌ **Vote Submission Failed**", icon="⚠️")
+                    st.warning(f"An error occurred while processing your vote: {error_message}")
+                    add_log(f"Error casting vote for {voter_id}: {error_message}", "error")
     else:
         st.warning("⚠️ **No Eligible Voters**", icon="🗳️")
         st.markdown("""
