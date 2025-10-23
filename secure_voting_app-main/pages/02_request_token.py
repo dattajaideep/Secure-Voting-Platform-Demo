@@ -18,12 +18,16 @@ voter_options = [v["voter_id"] for v in voters if not v["has_token"]]
 
 selected_voter = st.selectbox("Select Voter", [""] + voter_options)
 
-if st.button("Request Blind Token"):
+if st.button("Request Blind Token", key="request_token_btn"):
     if not selected_voter:
         st.error("Please select a voter")
     else:
-        client = VoterClient(authority)
-        token_hash, signature = client.create_blind_token(selected_voter)
-        st.success(f"Blind token issued for voter {selected_voter}")
-        add_log(f"Blind token issued: {selected_voter}", "success")
-        voter_repo.update_token_status(selected_voter, True)
+        try:
+            client = VoterClient(authority)
+            token_hash, signature = client.create_blind_token(selected_voter)
+            st.success(f"Blind token issued for voter {selected_voter}")
+            add_log(f"Blind token issued: {selected_voter}", "success")
+            voter_repo.update_token_status(selected_voter, True)
+        except Exception as e:
+            st.error(f"Error issuing token: {str(e)}")
+            add_log(f"Error issuing token to {selected_voter}: {str(e)}", "error")

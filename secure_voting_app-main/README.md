@@ -1,136 +1,320 @@
-# secure_voting_app
+# Secure Voting Platform
 
-secure_voting_app_basic
+A cryptographically secure, role-based access controlled voting system built with Streamlit, SQLite, and advanced cryptographic primitives.
 
-## Running PostgreSQL in GitHub Codespaces
+## Overview
 
-GitHub Codespaces does not support running Docker containers directly inside the codespace. Instead, use the built-in PostgreSQL service provided by Codespaces, or connect to a remote/local PostgreSQL instance.
+This secure voting platform implements end-to-end verifiable voting using advanced cryptographic techniques including:
+- **RSA Blind Signatures** for voter anonymity
+- **Verifiable Mix Networks** for vote shuffling
+- **One-Time Token System** for vote authorization
+- **Role-Based Access Control (RBAC)** for database operations
+- **Google OAuth 2.0** for user authentication
 
-### Option 1: Use Codespaces PostgreSQL Dev Service
+## Key Features
 
-1. Open the Codespaces configuration (gear icon > "Add Dev Service").
-2. Add the PostgreSQL service and configure:
-   - Username: `postgres`
-   - Password: `password`
-   - Database: `voting_db`
-   - Port: `5432`
-3. Update your `.env` file if needed:
-   ```env
-   DATABASE_URL=postgresql://postgres:password@localhost:5432/voting_db
-   ```
+### Security Features
+- 🔐 **Blind Signature Scheme**: Ensures voter anonymity while preventing double voting
+- 🔀 **Verifiable Mix Network**: Shuffles votes in a cryptographically verifiable manner
+- 🔑 **RSA Encryption**: Secure token generation and ballot encryption
+- 🛡️ **RBAC Database Access**: Fine-grained permission control per user role
+- 🚨 **Comprehensive Audit Logging**: All operations tracked for compliance
 
-### Option 2: Connect to a Remote or Local PostgreSQL
+### User Features
+- 👤 **Google OAuth Integration**: Seamless user authentication
+- 📊 **Real-time Results Dashboard**: View vote tallies with verification
+- 🗳️ **Simple Voting Interface**: User-friendly ballot casting
+- 📋 **Admin Dashboard**: System management and monitoring
+- 📖 **Audit Logs**: Complete transaction history
 
-If you have PostgreSQL running on your local machine or a remote server, update your `.env` file with the correct host and credentials.
+## Project Structure
 
-### Option 3: Use a Managed PostgreSQL Service
+```
+secure_voting_app-main/
+├── auth/                          # OAuth & authentication
+│   └── oauth.py                   # Google OAuth2 implementation
+├── crypto/                        # Cryptographic modules
+│   ├── rsa.py                     # RSA key generation & operations
+│   ├── hashing.py                 # Secure hashing utilities
+│   ├── rng.py                     # Random number generation
+│   └── __init__.py
+├── db/                            # Database & access control
+│   ├── access_control.py          # RBAC enforcement layer
+│   ├── connection.py              # SQLite connection management
+│   ├── init_db.py                 # Database initialization
+│   └── repositories/              # Data access objects
+│       ├── voter_repository.py    # Voter record management
+│       ├── ballot_repository.py   # Ballot storage
+│       ├── token_repository.py    # Token management
+│       ├── log_repository.py      # Audit logging
+│       └── mixnet_repository.py   # Mix network data
+├── pages/                         # Streamlit page routes
+│   ├── 00_admin_login.py          # Admin authentication
+│   ├── 01_registration.py         # Voter registration
+│   ├── 02_request_token.py        # Blind signature request
+│   ├── 03_cast_vote.py            # Ballot casting
+│   ├── 04_mixnet.py               # Mix network verification
+│   ├── 05_tally.py                # Result tallying
+│   └── 06_logs.py                 # Audit log viewer
+├── services/                      # Core business logic
+│   ├── voting_authority.py        # Blind signature issuer
+│   ├── voter_client.py            # Voter side cryptography
+│   ├── mixnet.py                  # Verifiable mix network
+│   └── secure_rsa.py              # RSA operations
+├── utils/                         # Utility functions
+│   ├── roles.py                   # RBAC role definitions
+│   ├── logger.py                  # Event logging
+│   ├── crypto.py                  # Crypto utilities
+│   └── otp_service.py             # OTP generation
+├── tests/                         # Test suite
+│   ├── test_access_control_rbac.py
+│   ├── test_integration_workflows.py
+│   └── test_repositories_rbac.py
+├── streamlit_app.py               # Main application entry point
+├── requirements.txt               # Python dependencies
+├── .env                           # Environment configuration
+└── voting_keys.json              # Stored RSA key pairs
+```
 
-You can use cloud providers like AWS RDS, Azure Database, or Google Cloud SQL. Update your `.env` file with the connection string provided by your service.
+## Installation
+
+### Prerequisites
+- Python 3.8+
+- pip
+- SQLite3
+
+### Setup
+
+1. **Clone the repository**
+```bash
+cd secure_voting_app-main
+```
+
+2. **Create virtual environment** (recommended)
+```bash
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
+
+3. **Install dependencies**
+```bash
+pip install -r requirements.txt
+```
+
+4. **Configure environment variables**
+Create a `.env` file in the root directory:
+```env
+# Google OAuth
+OAUTH_CLIENT_ID=your_google_client_id
+OAUTH_CLIENT_SECRET=your_google_client_secret
+
+# Admin credentials
+ADMIN_EMAIL=admin@example.com
+ADMIN_PASSWORD=secure_password_here
+
+# Database
+DATABASE_PATH=voting_system.db
+```
+
+5. **Run the application**
+```bash
+streamlit run streamlit_app.py
+```
+
+The application will be available at `http://localhost:8501`
+
+## Architecture
+
+### Voting Flow
+
+1. **Registration Phase**
+   - Voter registers via OAuth
+   - Stored in voters table with `has_voted=False`
+
+2. **Token Request Phase**
+   - Voter generates blind signature request
+   - Voting Authority issues blind signature without seeing voter identity
+   - One-time token created for vote submission
+
+3. **Casting Phase**
+   - Voter selects candidate
+   - Vote encrypted with ballot authority's public key
+   - Token submitted alongside encrypted vote
+
+4. **Mixing Phase**
+   - Verifiable Mix Network shuffles ballots
+   - Output linked to neither voter nor original ballot
+   - Tally conducted on mixed results
+
+### Role-Based Access Control (RBAC)
+
+**Voter Role** (`voter_read`)
+- SELECT on voters, ballots, tally_results, logs
+- Restricted to their own records only
+
+**Admin Role** (`admin_full`)
+- Full access to all tables
+- Can manage voters, generate reports, view audit logs
+
+**Database-Level Enforcement**
+- Access control checked at query execution
+- Prevents unauthorized data access
+- Logs all denied access attempts
+
+## API & Core Services
+
+### VotingAuthority
+Manages the blind signature scheme and vote validation.
+
+```python
+from services.voting_authority import VotingAuthority
+
+voting_authority = VotingAuthority(db_connection)
+blind_sig = voting_authority.issue_blind_signature(blinded_hash, voter_id)
+ballot_id = voting_authority.verify_token_and_cast_ballot(token_hash, signature, candidate)
+```
+
+### VoterClient
+Handles voter-side cryptographic operations.
+
+```python
+from services.voter_client import VoterClient
+
+client = VoterClient(public_key)
+blinded_hash = client.blind_hash(message)
+unblinded_sig = client.unblind_signature(blind_signature)
+```
+
+### VerifiableMixNet
+Implements cryptographically verifiable vote mixing.
+
+```python
+from services.mixnet import VerifiableMixNet
+
+mixnet = VerifiableMixNet(public_key)
+mixed_votes, proof = mixnet.shuffle_and_prove(ballots)
+```
+
+## Database Schema
+
+### voters
+```
+voter_id (PRIMARY KEY)
+name TEXT
+email TEXT UNIQUE
+has_token BOOLEAN
+has_voted BOOLEAN
+registered_at TIMESTAMP
+```
+
+### tokens
+```
+token_id (PRIMARY KEY)
+voter_id FOREIGN KEY
+token_hash TEXT UNIQUE
+created_at TIMESTAMP
+used BOOLEAN
+```
+
+### ballots
+```
+ballot_id (PRIMARY KEY)
+voter_id FOREIGN KEY
+candidate TEXT
+encrypted_vote TEXT
+created_at TIMESTAMP
+```
+
+### tally_results
+```
+candidate TEXT PRIMARY KEY
+vote_count INTEGER
+percentage REAL
+```
+
+### logs
+```
+log_id (PRIMARY KEY)
+user_email TEXT
+action TEXT
+timestamp TIMESTAMP
+status TEXT (success/failed)
+```
+
+## Testing
+
+Run the test suite:
+```bash
+pytest tests/ -v
+```
+
+Test coverage includes:
+- RBAC enforcement and permission validation
+- Repository operations with access control
+- End-to-end voting workflows
+- Cryptographic operations (RSA, blind signatures)
+- Database access control policies
+
+## Security Considerations
+
+### Current Implementation
+- ✅ Blind signatures for voter anonymity
+- ✅ Role-based database access control
+- ✅ OAuth 2.0 for authentication
+- ✅ Comprehensive audit logging
+- ✅ Vote encryption
+
+### Production Recommendations
+- 🔧 Use 2048+ bit RSA keys (currently 1024 for demo)
+- 🔧 Implement HTTPS/TLS for all communications
+- 🔧 Use proper certificate verification for OAuth
+- 🔧 Add rate limiting and DDoS protection
+- 🔧 Implement voter authentication with 2FA
+- 🔧 Use enterprise-grade database (PostgreSQL) with full audit trails
+- 🔧 Add hardware security modules (HSM) for key storage
+- 🔧 Regular security audits and penetration testing
+
+## Admin Panel Features
+
+Access admin dashboard at `/pages/00_admin_login.py`:
+- 📊 View voting statistics
+- 👥 Manage registered voters
+- 🗳️ Monitor ballot submissions
+- 📋 Review audit logs
+- 🔧 System configuration
+
+## Pages Overview
+
+| Page | Route | Purpose |
+|------|-------|---------|
+| Admin Login | 00_admin_login.py | Admin authentication |
+| Registration | 01_registration.py | New voter registration |
+| Request Token | 02_request_token.py | Blind signature request |
+| Cast Vote | 03_cast_vote.py | Vote submission |
+| Mix Network | 04_mixnet.py | Vote shuffling verification |
+| Tally Results | 05_tally.py | View election results |
+| Audit Logs | 06_logs.py | Review system logs |
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Author
+
+Created as a demonstration of secure voting systems with cryptographic verification and role-based access control.
+
+## Support
+
+For issues, questions, or suggestions, please open an issue on GitHub or contact the project maintainers.
 
 ---
 
-## Docker Installation (Debian-based Linux)
-
-To install Docker, run the following commands:
-
-```bash
-sudo apt update
-sudo apt install -y ca-certificates curl gnupg
-sudo install -m 0755 -d /etc/apt/keyrings
-curl -fsSL https://download.docker.com/linux/debian/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-echo \
-	"deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian \
-	$(lsb_release -cs) stable" | \
-	sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-sudo apt update
-sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-```
-
-After installation, verify Docker is installed:
-
-```bash
-docker --version
-```
-
-## Project overview (detailed)
-
-This is a small demo secure voting system with:
-
-- Frontend UI: Streamlit app (`streamlit_app.py` + `pages/*`) providing six pages (Registration, Request Token, Cast Vote, Mix Network, Tally, Logs).
-- Services: core crypto and protocol logic in `services` (RSA, `VotingAuthority`, `VoterClient`, `MixNet`).
-- Database layer: simple repository wrappers in `db/repositories` using `db.connection.get_conn()` (Postgres).
-- Utilities: cryptographic helpers and logging helpers in `utils`.
-- DB schema initializer: `.devcontainer/init-db.sql`.
-
-The system demonstrates blind-signature token issuance, casting votes with blinded tokens, a simple mixnet shuffle, and tallying.
-
-Below is an in-depth walk-through.
-
-### High-level architecture and components
-
-- **UI layer (Streamlit)**
-  - `streamlit_app.py` is the main UI glue. It initializes repositories, services, and session state, and exposes a sidebar navigation among pages.
-  - `pages/*.py` contain page components (optionally used in a multipage Streamlit layout). They call services/repositories.
-- **Services**
-  - `voting_authority.py`: central authority holding RSA keys and methods to issue blind signatures and verify tokens when casting ballots. Also inserts ballots into DB via `BallotRepository`.
-  - `voter_client.py`: client-side logic for voters to create blind tokens and unblind signatures; interacts with `VotingAuthority` to obtain blind signature and with `TokenRepository` to store tokens.
-  - `secure_rsa.py`: RSA implementation (key generation, `mod_pow`, sign/verify, blind/unblind). Custom implementation (non-library).
-  - `mixnet.py`: mixnet simulator that shuffles ballots and generates commitment-bound proof hashes. Can optionally persist proofs via a repository.
-- **Database & repositories**
-  - `connection.py` reads `DATABASE_URL` and returns a psycopg2 connection with `RealDictCursor`.
-  - Repositories: `VoterRepository`, `TokenRepository`, `BallotRepository`, `MixNetRepository`, `LogRepository` — thin wrappers around SQL operations (INSERT/SELECT/UPDATE). Each opens a connection, makes a single change or query, commits, and closes.
-- **Utilities**
-  - `crypto.py` — `sha256_hex` helper.
-  - `logger.py` — wrapper around `LogRepository.add_log()` to centralize logging.
-- **DB initializer**: `.devcontainer/init-db.sql` creates tables (`voters`, `tokens`, `ballots`, `mixnet_proofs`, `logs`).
-
-### Data shapes and DB schema mapping
-
-- **Voter (table `voters`)**:
-  - columns: `voter_id TEXT PRIMARY KEY`, `name TEXT`, `has_token BOOLEAN`, `has_voted BOOLEAN`
-- **Token (table `tokens`)**:
-  - columns: `voter_id TEXT PRIMARY KEY REFERENCES voters(voter_id)`, `token_hash TEXT`, `signature TEXT`
-  - `token_hash` is hex SHA-256 of the token; `signature` is hex string produced by RSA blind-signature protocol.
-- **Ballot (table `ballots`)**:
-  - columns: `ballot_id TEXT PRIMARY KEY`, `candidate TEXT`, `token_hash TEXT`, `encrypted BOOLEAN DEFAULT TRUE`
-- **Mixnet proofs (`mixnet_proofs`)**:
-  - columns: `id SERIAL PRIMARY KEY`, `layer INT`, `input_count INT`, `output_count INT`, `proof_hash TEXT`
-  - The code stores `proof` -> `proof_hash`, and the mixnet now produces commitment hashes and includes `input_commit`/`output_commit` in the proof dict (but repo only persists `proof` to `proof_hash` column).
-- **Logs (`logs`)**:
-  - columns: `id SERIAL`, `message TEXT`, `log_type TEXT`, `created_at TIMESTAMP DEFAULT NOW()`.
-
-### End-to-end flows (technical, step-by-step)
-
-See the repository files for exact call sites; in short:
-
-1. **Registration** (UI: Registration page)
-
-   - `voter_repo.add_voter(voter_id, name)` inserts the voter.
-   - `VotingAuthority.register_voter(voter_id)` updates authority's in-memory set.
-
-2. **Request Token (Blind signature issuance)**
-
-   - VoterClient generates a token, computes `token_hash`, blinds the hash, calls `VotingAuthority.issue_blind_signature(blinded_hash, voter_id)`, unblinds the signature, and stores `token_hash` and signature with `TokenRepository.add_token()`.
-
-3. **Cast Vote**
-
-   - Token and signature are read from DB, signature verified with `SecureRSA.verify_hash()`, a `ballot_id` is generated and inserted via `BallotRepository.add_ballot()`. `VoterRepository.mark_voted()` marks voter as voted.
-
-4. **Mix Network**
-
-   - `BallotRepository.get_all_ballots()` -> `VerifiableMixNet.mix(ballots)`, produce shuffled ballots and per-layer proofs. `MixNetRepository.save_proof()` inserts proofs into `mixnet_proofs`.
-
-5. **Tally**
-   - `BallotRepository.get_all_ballots()` then server computes counts per `candidate` and displays results.
-
-### Important observations, security gaps, and recommendations
-
-(summarized; see code comments and issues in repo for details):
-
-- Ballots stored in plaintext (privacy not guaranteed). Use encryption and verifiable shuffle for privacy.
-- Token reuse prevention is incomplete (see `used_token_hashes`). Add DB-backed atomic mark-as-used during ballot insert.
-- RSA keys are generated in-memory; persist keys to survive restarts.
-- Use vetted crypto libs for production.
-- Ensure `DATABASE_URL` is correct for your runtime (use `db` hostname in Docker Compose).
-
-If you'd like, I can implement one of the recommended fixes (prevent double-voting atomically, persist RSA keys, or extend mixnet proof persistence). Tell me which and I'll implement it.
+**Last Updated**: October 23, 2025

@@ -2,8 +2,9 @@
 # pages/06_logs.py
 import streamlit as st
 from db.repositories import LogRepository
+from utils.roles import require_admin  # ← ADD THIS IMPORT
 
-
+require_admin()
 st.title("6️⃣ System Logs")
 log_repo = LogRepository()
 logs = log_repo.get_all_logs()

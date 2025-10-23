@@ -1,13 +1,16 @@
 import streamlit as st
 from streamlit_oauth import OAuth2Component
 from dotenv import load_dotenv
+from utils.roles import is_admin, is_logged_in, get_user_role
 import os
 from datetime import datetime
+
 
 # --- Load environment variables (Google OAuth credentials) ---
 load_dotenv()
 OAUTH_CLIENT_ID = os.getenv("OAUTH_CLIENT_ID")
 OAUTH_CLIENT_SECRET = os.getenv("OAUTH_CLIENT_SECRET")
+
 
 # --- Local project imports ---
 from db.init_db import init_db
@@ -17,9 +20,11 @@ from db.repositories.ballot_repository import BallotRepository
 from db.repositories.mixnet_repository import MixNetRepository
 from db.repositories.log_repository import LogRepository
 from utils.logger import add_log
+from utils.roles import is_admin, is_logged_in, get_user_role  # ← ADD THIS
 from services.voting_authority import VotingAuthority
 from services.voter_client import VoterClient
 from services.mixnet import VerifiableMixNet
+
 
 # --- Initialize database tables automatically ---
 init_db()
@@ -28,21 +33,24 @@ init_db()
 st.set_page_config(page_title="Secure Voting System", page_icon="🗳️", layout="wide")
 st.title("Secure Voting System with Google OAuth + SQLite")
 
-# --- OAuth configuration ---
-
-
-if "user_email" in st.session_state:
-    st.sidebar.success(f"Logged in as {st.session_state.user_email}")
+# --- Sidebar: Show login status and role ---
+if is_logged_in():
+    if is_admin():
+        st.sidebar.success(f"🔑 Admin: {st.session_state.user_email}")
+    else:
+        st.sidebar.success(f"👤 User: {st.session_state.user_email}")
+    
+    # Logout button (only show if logged in)
+    if st.sidebar.button("Logout"):
+        add_log(f"{st.session_state.user_email} logged out", "info")
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
+        st.rerun()
 else:
     st.sidebar.info("Not logged in")
-if st.sidebar.button("Logout"):
-    add_log(f"{st.session_state.user_email} logged out", "info")
-    for key in list(st.session_state.keys()):
-        del st.session_state[key]
-    st.experimental_rerun()
 
+    
 # --- Initialize core repositories and services ---
-
 voter_repo = VoterRepository()
 ballot_repo = BallotRepository()
 log_repo = LogRepository()
@@ -60,6 +68,7 @@ menu = st.sidebar.radio(
     ["Home", "Register Voter", "Request Token", "Cast Vote", "Mix Network", "Tally Results", "Logs"]
 )
 
+
 # --- Page: Home ---
 if menu == "Home":
     st.header("Welcome to the Secure Electronic Voting Demo")
@@ -67,6 +76,7 @@ if menu == "Home":
         This system shows how secure, transparent electronic voting can work.
         It uses Google OAuth for authentication and SQLite for secure data storage.
     """)
+
 
 # --- Page: Register Voter ---
 elif menu == "Register Voter":
@@ -87,6 +97,7 @@ elif menu == "Register Voter":
     else:
         st.info("No voters registered yet.")
 
+
 # --- Page: Request Token ---
 elif menu == "Request Token":
     st.header("Request Voting Token")
@@ -102,6 +113,7 @@ elif menu == "Request Token":
             st.success(f"Token issued for {voter_map[voter_id]}")
     else:
         st.info("No eligible voters without tokens.")
+
 
 # --- Page: Cast Vote ---
 elif menu == "Cast Vote":
@@ -124,40 +136,55 @@ elif menu == "Cast Vote":
     else:
         st.info("No eligible voters available to vote.")
 
-# --- Page: Mix Network ---
+
+# --- Page: Mix Network (Admin Only) ---
 elif menu == "Mix Network":
-    st.header("Run MixNet to Anonymize Votes")
-    ballots = ballot_repo.get_all_ballots()
-    if st.button("Run MixNet"):
-        mixed, proofs = mixnet.mix(ballots)
-        st.session_state.mixed_ballots = mixed
-        st.session_state.mix_proofs = proofs
-        for p in proofs:
-            mixnet_repo.save_proof(p)
-            add_log(f"MixNet proof saved for layer {p['layer']}", "info")
-        st.success("Mixing complete and proofs recorded.")
-    if "mixed_ballots" in st.session_state:
-        st.subheader("Mixed Ballots")
-        st.table(st.session_state.mixed_ballots)
+    if not is_admin():
+        st.error("🚫 Access Denied: This page is only accessible to administrators")
+        st.info("Please log in with admin credentials")
+    else:
+        st.header("Run MixNet to Anonymize Votes")
+        ballots = ballot_repo.get_all_ballots()
+        if st.button("Run MixNet"):
+            mixed, proofs = mixnet.mix(ballots)
+            st.session_state.mixed_ballots = mixed
+            st.session_state.mix_proofs = proofs
+            for p in proofs:
+                mixnet_repo.save_proof(p)
+                add_log(f"MixNet proof saved for layer {p['layer']}", "info")
+            st.success("Mixing complete and proofs recorded.")
+        if "mixed_ballots" in st.session_state:
+            st.subheader("Mixed Ballots")
+            st.table(st.session_state.mixed_ballots)
 
-# --- Page: Tally Results ---
+
+# --- Page: Tally Results (Admin Only) ---
 elif menu == "Tally Results":
-    st.header("Tally Election Results")
-    if "mixed_ballots" in st.session_state:
-        tally = {}
-        for b in st.session_state.mixed_ballots:
-            tally[b["candidate"]] = tally.get(b["candidate"], 0) + 1
-        st.subheader("Vote Totals")
-        for c, count in tally.items():
-            st.write(f"{c}: {count} votes")
+    if not is_admin():
+        st.error("🚫 Access Denied: This page is only accessible to administrators")
+        st.info("Please log in with admin credentials")
     else:
-        st.info("Run the MixNet first to anonymize ballots.")
+        st.header("Tally Election Results")
+        if "mixed_ballots" in st.session_state:
+            tally = {}
+            for b in st.session_state.mixed_ballots:
+                tally[b["candidate"]] = tally.get(b["candidate"], 0) + 1
+            st.subheader("Vote Totals")
+            for c, count in tally.items():
+                st.write(f"{c}: {count} votes")
+        else:
+            st.info("Run the MixNet first to anonymize ballots.")
 
-# --- Page: Logs ---
+
+# --- Page: Logs (Admin Only) ---
 elif menu == "Logs":
-    st.header("System Activity Logs")
-    logs = log_repo.get_all_logs()
-    if logs:
-        st.table(logs)
+    if not is_admin():
+        st.error("🚫 Access Denied: This page is only accessible to administrators")
+        st.info("Please log in with admin credentials")
     else:
-        st.info("No activity logs found.")
+        st.header("System Activity Logs")
+        logs = log_repo.get_all_logs()
+        if logs:
+            st.table(logs)
+        else:
+            st.info("No activity logs found.")

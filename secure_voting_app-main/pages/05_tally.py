@@ -3,7 +3,10 @@
 import streamlit as st
 from db.repositories import BallotRepository
 from utils.logger import add_log
+from utils.roles import require_admin  # ← ADD THIS IMPORT
 
+# ← ADD THIS LINE (must be first, before any other st. commands)
+require_admin()
 
 st.title("5️⃣ Tally Results")
 ballot_repo = BallotRepository()

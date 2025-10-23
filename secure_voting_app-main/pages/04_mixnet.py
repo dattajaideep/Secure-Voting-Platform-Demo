@@ -1,17 +1,19 @@
-# Mixnet shuffle page
-# services/mixnet.py
 # pages/04_mixnet.py
 import streamlit as st
+from utils.roles import require_admin  # ← ADD THIS IMPORT
 from services.mixnet import VerifiableMixNet
 from db.repositories import BallotRepository, MixNetRepository
 from utils.logger import add_log
 
+# ← ADD THIS LINE (must be first, before any other st. commands)
+require_admin()
 
 st.title("4️⃣ MixNet Anonymization")
 
 ballot_repo = BallotRepository()
 mixnet_repo = MixNetRepository()
 ballots = ballot_repo.get_all_ballots()
+
 if not ballots:
     st.info("No ballots to mix yet.")
 

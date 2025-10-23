@@ -1,4 +1,12 @@
 streamlit
-streamlit-oauth
 requests
+cryptography
 python-dotenv
+google-auth
+google-auth-oauthlib
+google-auth-httplib2
+psycopg2-binary
+SQLAlchemy
+Pillow
+pandas
+numpy

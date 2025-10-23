@@ -6,83 +6,186 @@ from auth.oauth import oauth2, OAUTH_REDIRECT_URI
 from utils.otp_service import generate_otp, send_otp_email
 from datetime import datetime, timedelta
 
-st.title("1️⃣ Voter Registration")
+st.title("1️⃣ Voter Access Portal")
 
 voter_repo = VoterRepository()
 
-# --- Choose registration method ---
-choice = st.radio(
-    "Select Registration Method",
-    ["Google OAuth", "Email + OTP"]
+# --- Choose action: Register or Login ---
+action = st.radio(
+    "What would you like to do?",
+    ["Register New Account", "Login to Existing Account"]
 )
 
-# ============ GOOGLE OAUTH REGISTRATION ============
-if choice == "Google OAuth":
-    st.subheader("Sign in with Google to register")
-
-    result = oauth2.authorize_button(
-        "Register with Google",
-        OAUTH_REDIRECT_URI,
-        "openid email profile"
+# ============================================
+# REGISTRATION FLOW
+# ============================================
+if action == "Register New Account":
+    st.subheader("Register New Voter")
+    
+    # Choose registration method
+    method = st.radio(
+        "Select Registration Method",
+        ["Google OAuth", "Email + OTP"],
+        key="register_method"
     )
+    
+    # --- Google OAuth Registration ---
+    if method == "Google OAuth":
+        result = oauth2.authorize_button(
+            "Register with Google",
+            OAUTH_REDIRECT_URI,
+            "openid email profile"
+        )
 
-    if result:
-        user_info = oauth2.get_user_info(result["access_token"])
-        email = user_info.get("email")
-        name = user_info.get("name", "Anonymous")
+        if result:
+            user_info = oauth2.get_user_info(result["access_token"])
+            email = user_info.get("email")
+            name = user_info.get("name", "Anonymous")
 
-        voter_repo.add_voter(email, name)
-        add_log(f"Google registration: {email}", "info")
-        st.success(f"✅ {name} registered successfully via Google!")
+            voter_repo.add_voter(email, name)
+            
+            # Set session state for regular users
+            st.session_state.user_email = email
+            st.session_state.user_name = name
+            st.session_state.role = "user"
+            
+            add_log(f"Google registration: {email}", "info")
+            st.success(f"✅ {name} registered successfully via Google!")
+    
+    # --- Email + OTP Registration ---
+    elif method == "Email + OTP":
+        # Initialize session state variables before widgets
+        if "reg_email" not in st.session_state:
+            st.session_state.reg_email = ""
+        if "reg_name" not in st.session_state:
+            st.session_state.reg_name = ""
+        
+        email = st.text_input("Enter your email address", key="reg_email")
+        name = st.text_input("Enter your full name", key="reg_name")
 
-# ============ EMAIL + OTP REGISTRATION ============
-elif choice == "Email + OTP":
-    st.subheader("Register with Email + OTP")
-
-    email = st.text_input("Enter your email address")
-    name = st.text_input("Enter your full name")
-
-    # Step 1: Send OTP
-    if st.button("Send OTP"):
-        if not email or not name:
-            st.error("Please enter both email and name")
-        else:
-            otp = generate_otp()
-            if send_otp_email(email, otp):
-                st.session_state.otp = otp
-                st.session_state.otp_email = email
-                st.session_state.otp_name = name
-                st.session_state.otp_time = datetime.now()
-                st.success(f"✅ OTP sent to {email}")
-                add_log(f"OTP sent to {email}", "info")
+        # Step 1: Send OTP
+        if st.button("Send OTP", key="send_reg_otp"):
+            if not email or not name:
+                st.error("Please enter both email and name")
             else:
-                st.error("Failed to send OTP. Check email configuration.")
+                otp = generate_otp()
+                if send_otp_email(email, otp):
+                    st.session_state.reg_otp = otp
+                    st.session_state.reg_otp_time = datetime.now()
+                    st.success(f"✅ OTP sent to {email}")
+                    add_log(f"OTP sent to {email}", "info")
+                else:
+                    st.error("Failed to send OTP. Check email configuration.")
 
-    # Step 2: Verify OTP
-    if "otp" in st.session_state:
-        otp_input = st.text_input("Enter the 6-digit OTP", type="password", max_chars=6)
+        # Step 2: Verify OTP
+        if "reg_otp" in st.session_state:
+            otp_input = st.text_input("Enter the 6-digit OTP", type="password", max_chars=6, key="reg_otp_input")
 
-        if st.button("Verify OTP and Register"):
-            # Check if OTP expired (5 minutes)
-            time_diff = datetime.now() - st.session_state.otp_time
-            if time_diff > timedelta(minutes=5):
-                st.error("OTP expired. Please request a new one.")
-                del st.session_state.otp
-            elif int(otp_input) == st.session_state.otp:
-                # Register the voter
-                voter_repo.add_voter(st.session_state.otp_email, st.session_state.otp_name)
-                add_log(f"OTP registration: {st.session_state.otp_email}", "info")
-                st.success(f"✅ {st.session_state.otp_name} registered successfully!")
-                
-                # Clear OTP from session
-                del st.session_state.otp
-                del st.session_state.otp_email
-                del st.session_state.otp_name
-                del st.session_state.otp_time
+            if st.button("Verify OTP and Register", key="verify_reg_otp"):
+                time_diff = datetime.now() - st.session_state.reg_otp_time
+                if time_diff > timedelta(minutes=5):
+                    st.error("OTP expired. Please request a new one.")
+                    del st.session_state.reg_otp
+                elif int(otp_input) == st.session_state.reg_otp:
+                    # Register the voter
+                    voter_repo.add_voter(st.session_state.reg_email, st.session_state.reg_name)
+                    
+                    # Set session state
+                    st.session_state.user_email = st.session_state.reg_email
+                    st.session_state.user_name = st.session_state.reg_name
+                    st.session_state.role = "user"
+                    
+                    add_log(f"OTP registration: {st.session_state.reg_email}", "info")
+                    st.success(f"✅ {st.session_state.reg_name} registered successfully!")
+                    
+                    # Clear OTP from session
+                    del st.session_state.reg_otp
+                    del st.session_state.reg_email
+                    del st.session_state.reg_name
+                    del st.session_state.reg_otp_time
+                else:
+                    st.error("❌ Invalid OTP. Please try again.")
+
+# ============================================
+# LOGIN FLOW
+# ============================================
+elif action == "Login to Existing Account":
+    st.subheader("Login")
+    
+    # Choose login method
+    method = st.radio(
+        "Select Login Method",
+        ["Google OAuth", "Email + OTP"],
+        key="login_method"
+    )
+    
+    # --- Google OAuth Login ---
+    if method == "Google OAuth":
+        result = oauth2.authorize_button(
+            "Login with Google",
+            OAUTH_REDIRECT_URI,
+            "openid email profile"
+        )
+
+        if result:
+            user_info = oauth2.get_user_info(result["access_token"])
+            email = user_info.get("email")
+            name = user_info.get("name", "Anonymous")
+            
+            # Set session state
+            st.session_state.user_email = email
+            st.session_state.user_name = name
+            st.session_state.role = "user"
+            
+            add_log(f"{email} logged in via Google", "info")
+            st.success(f"✅ Welcome back, {name}!")
+    
+    # --- Email + OTP Login ---
+    elif method == "Email + OTP":
+        email = st.text_input("Enter your registered email", key="login_email_input")
+
+        # Step 1: Send OTP
+        if st.button("Send Login OTP", key="send_login_otp"):
+            if not email:
+                st.error("Please enter your registered email")
             else:
-                st.error("❌ Invalid OTP. Please try again.")
+                otp = generate_otp()
+                if send_otp_email(email, otp):
+                    st.session_state.login_otp = otp
+                    st.session_state.login_email_stored = email
+                    st.session_state.login_otp_time = datetime.now()
+                    st.success(f"✅ OTP sent to {email}")
+                    add_log(f"OTP login requested: {email}", "info")
+                else:
+                    st.error("Failed to send OTP. Check email configuration.")
 
-# ============ LIST REGISTERED VOTERS ============
+        # Step 2: Verify OTP
+        if "login_otp" in st.session_state:
+            otp_input = st.text_input("Enter the 6-digit OTP", type="password", max_chars=6, key="login_otp_input")
+
+            if st.button("Verify Login", key="verify_login_otp"):
+                time_diff = datetime.now() - st.session_state.login_otp_time
+                if time_diff > timedelta(minutes=5):
+                    st.error("OTP expired. Please request a new one.")
+                    del st.session_state.login_otp
+                elif int(otp_input) == st.session_state.login_otp:
+                    # Set session state
+                    st.session_state.user_email = st.session_state.login_email_stored
+                    st.session_state.user_name = "Voter"
+                    st.session_state.role = "user"
+                    
+                    add_log(f"{st.session_state.login_email_stored} logged in via OTP", "info")
+                    st.success("✅ Login successful!")
+                    
+                    # Clear OTP from session
+                    del st.session_state.login_otp
+                    del st.session_state.login_email_stored
+                    del st.session_state.login_otp_time
+                else:
+                    st.error("❌ Invalid OTP. Please try again.")
+# ============================================
+# LIST REGISTERED VOTERS
+# ============================================
 st.divider()
 st.subheader("Registered Voters")
 voters = voter_repo.get_all_voters()

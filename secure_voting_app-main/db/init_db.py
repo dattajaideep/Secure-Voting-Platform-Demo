@@ -2,10 +2,91 @@
 from db.connection import get_conn
 from utils.logger import add_log
 
+def verify_schema_integrity():
+    """
+    Verify all tables have required columns.
+    Raises RuntimeError if schema is invalid.
+    """
+    conn = get_conn()
+    cur = conn.cursor()
+    
+    # Required schema: table -> list of required columns
+    required_schema = {
+        "voters": ["voter_id", "name", "has_token", "has_voted"],
+        "ballots": ["ballot_id", "candidate"],
+        "tokens": ["id", "voter_id", "token_hash", "signature", "issued_at"],
+        "logs": ["id", "message", "log_type", "created_at"],
+        "mixnet_proofs": ["id", "layer", "input_count", "output_count", "proof_hash"]
+    }
+    
+    for table_name, required_cols in required_schema.items():
+        cur.execute(f"PRAGMA table_info({table_name})")
+        table_info = cur.fetchall()
+        actual_cols = [col[1] for col in table_info]
+        
+        for col in required_cols:
+            if col not in actual_cols:
+                conn.close()
+                error_msg = f"Schema error: {table_name} missing column {col}"
+                add_log(f"ERROR: {error_msg}", "error")
+                raise RuntimeError(error_msg)
+    
+    conn.close()
+    add_log("Schema integrity verified", "info")
+
 def init_db():
     conn = get_conn()
     cur = conn.cursor()
 
+    # --- SCHEMA MIGRATION: Check and fix existing tables ---
+    
+    # Check tokens table for old schema
+    cur.execute("PRAGMA table_info(tokens)")
+    tokens_info = cur.fetchall()
+    tokens_needs_recreation = False
+    
+    if tokens_info:
+        col_names = [col[1] for col in tokens_info]
+        # If old schema exists or missing token_hash, drop and recreate
+        if ("token_value" in col_names and "token_hash" not in col_names) or \
+           "token_hash" not in col_names:
+            cur.execute("DROP TABLE IF EXISTS tokens")
+            add_log("Migrated tokens table schema (removed old structure)", "info")
+            tokens_needs_recreation = True
+    
+    # Check voters table for missing columns
+    cur.execute("PRAGMA table_info(voters)")
+    voters_info = cur.fetchall()
+    if voters_info:
+        col_names = [col[1] for col in voters_info]
+        if "has_token" not in col_names:
+            cur.execute("ALTER TABLE voters ADD COLUMN has_token INTEGER DEFAULT 0")
+            add_log("Added has_token column to voters", "info")
+        if "has_voted" not in col_names:
+            cur.execute("ALTER TABLE voters ADD COLUMN has_voted INTEGER DEFAULT 0")
+            add_log("Added has_voted column to voters", "info")
+    
+    # Check ballots table for correct schema
+    cur.execute("PRAGMA table_info(ballots)")
+    ballots_info = cur.fetchall()
+    if ballots_info:
+        col_names = [col[1] for col in ballots_info]
+        # If ballots table has incorrect schema, drop and recreate
+        if "ballot_id" not in col_names or "candidate" not in col_names:
+            cur.execute("DROP TABLE IF EXISTS ballots")
+            add_log("Migrated ballots table schema", "info")
+    
+    # Check logs table
+    cur.execute("PRAGMA table_info(logs)")
+    logs_info = cur.fetchall()
+    if logs_info:
+        col_names = [col[1] for col in logs_info]
+        if "log_type" not in col_names:
+            cur.execute("ALTER TABLE logs ADD COLUMN log_type TEXT DEFAULT 'info'")
+            add_log("Added log_type column to logs", "info")
+    
+    # --- CREATE TABLES WITH LATEST SCHEMA ---
+    
     cur.execute("""
         CREATE TABLE IF NOT EXISTS voters (
             voter_id TEXT PRIMARY KEY,
@@ -45,15 +126,37 @@ def init_db():
         CREATE TABLE IF NOT EXISTS tokens (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             voter_id TEXT NOT NULL,
-            token_value TEXT NOT NULL,
+            token_hash TEXT NOT NULL,
+            signature TEXT NOT NULL,
             issued_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY(voter_id) REFERENCES voters(voter_id)
         )
     """)
+    
+    # --- POST-CREATION VALIDATION ---
+    # Verify tokens table has required columns
+    cur.execute("PRAGMA table_info(tokens)")
+    tokens_final = cur.fetchall()
+    token_col_names = [col[1] for col in tokens_final]
+    
+    if "token_hash" not in token_col_names:
+        add_log("ERROR: tokens table missing token_hash column after creation", "error")
+        raise RuntimeError("Database schema error: tokens table missing token_hash column")
+    
+    if "signature" not in token_col_names:
+        add_log("ERROR: tokens table missing signature column after creation", "error")
+        raise RuntimeError("Database schema error: tokens table missing signature column")
 
     conn.commit()
     conn.close()
-    add_log("Database tables initialized successfully", "info")
+    add_log("Database tables initialized and validated successfully", "info")
+    
+    # Final schema verification
+    verify_schema_integrity()
+
+if __name__ == "__main__":
+    init_db()
+    print("Database created successfully")
 
 if __name__ == "__main__":
     init_db()

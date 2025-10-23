@@ -22,13 +22,22 @@ candidates = ["Candidate A", "Candidate B", "Candidate C"]
 selected_voter = st.selectbox("Select Voter", [""] + voter_options)
 selected_candidate = st.selectbox("Select Candidate", [""] + candidates)
 
-if st.button("Cast Vote"):
+if st.button("Cast Vote", key="cast_vote_btn"):
     if not selected_voter or not selected_candidate:
         st.error("Select both voter and candidate")
     else:
-        client = VoterClient(authority)
-        token = token_repo.get_token_by_voter(selected_voter)
-        ballot_id = client.cast_vote(token["token_hash"], int(token["signature"], 16), selected_candidate)
-        st.success(f"Vote cast successfully! Ballot ID: {ballot_id}")
-        voter_repo.mark_voted(selected_voter)
-        add_log(f"Vote cast by {selected_voter}, ballot {ballot_id}", "success")
+        try:
+            client = VoterClient(authority)
+            token = token_repo.get_token_by_voter(selected_voter)
+            if token is None:
+                st.error("No token found for this voter")
+            else:
+                # Convert signature from hex string to int
+                signature_int = int(token["signature"], 16) if isinstance(token["signature"], str) else token["signature"]
+                ballot_id = client.cast_vote(token["token_hash"], signature_int, selected_candidate)
+                st.success(f"Vote cast successfully! Ballot ID: {ballot_id}")
+                voter_repo.mark_voted(selected_voter)
+                add_log(f"Vote cast by {selected_voter}, ballot {ballot_id}", "success")
+        except Exception as e:
+            st.error(f"Error casting vote: {str(e)}")
+            add_log(f"Error casting vote for {selected_voter}: {str(e)}", "error")
