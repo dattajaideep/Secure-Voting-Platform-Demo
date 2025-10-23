@@ -187,11 +187,163 @@ except TypeError:
 # --- Page render functions ---
 @require_roles('voter', 'admin', 'guest')
 def render_home():
-    st.header("Welcome to the Secure Electronic Voting Demo")
-    st.markdown("""
-        This system shows how secure, transparent electronic voting can work.
-        It uses Google OAuth for authentication and SQLite for secure data storage.
-    """)
+    """Home page - accessible to everyone with voter list display and privacy masking"""
+    
+    # ===== WELCOME SECTION =====
+    st.title("🗳️ Secure Voting Platform")
+    
+    col1, col2 = st.columns([2, 1])
+    with col1:
+        st.markdown("""
+        Welcome to our **Secure Voting Platform**!
+        
+        🔐 **Key Features:**
+        - End-to-end encrypted voting
+        - Blind signatures for voter anonymity
+        - One-vote-per-voter guarantee
+        - Cryptographic verification
+        """)
+    
+    with col2:
+        st.info("""
+        📋 **Quick Links:**
+        - [Register Voter](/?page=Register%20Voter)
+        - [Request Token](/?page=Request%20Token)
+        - [Cast Vote](/?page=Cast%20Vote)
+        """)
+    
+    st.divider()
+    
+    # ===== REGISTERED VOTERS LIST =====
+    st.subheader("📋 Registered Voters")
+    st.markdown("*Voter information is masked by default for privacy*")
+    
+    voters = voter_repo.get_all_voters()
+    
+    if voters:
+        # Check user login status and role
+        is_user_logged_in = is_logged_in()
+        current_role = get_user_role()
+        current_voter_id = st.session_state.get('voter_id', st.session_state.get('user_email', None))
+        is_admin_user = current_role == 'admin'
+        
+        # Show unmask toggle only if user is logged in
+        if is_user_logged_in:
+            col1, col2 = st.columns([3, 1])
+            with col2:
+                st.markdown("**Your Controls:**")
+                if is_admin_user:
+                    # Admin can unmask all voters
+                    show_unmask_option = st.checkbox(
+                        "🔓 Unmask All",
+                        value=st.session_state.get('home_unmask_all', False),
+                        key="home_unmask_admin",
+                        help="View all voter information"
+                    )
+                    st.session_state.home_unmask_all = show_unmask_option
+                else:
+                    # Voter can only unmask their own data
+                    show_unmask_option = st.checkbox(
+                        "🔓 Unmask My Data",
+                        value=st.session_state.get('home_unmask_self', False),
+                        key="home_unmask_voter",
+                        help="View your unmasked voter information"
+                    )
+                    st.session_state.home_unmask_self = show_unmask_option
+        else:
+            show_unmask_option = False
+            st.info("🔒 Log in to unmask your voter information")
+        
+        st.divider()
+        
+        # ===== DISPLAY VOTER LIST =====
+        # Create table headers
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.write("**📧 Email/ID**")
+        with col2:
+            st.write("**👤 Name**")
+        with col3:
+            st.write("**Token Status**")
+        with col4:
+            st.write("**Vote Status**")
+        
+        st.divider()
+        
+        # Display each voter
+        for voter in voters:
+            # Extract voter data
+            if isinstance(voter, (tuple, list)):
+                voter_id = voter[1] if len(voter) > 1 else 'N/A'
+                voter_name = voter[2] if len(voter) > 2 else 'N/A'
+                has_token = voter[3] if len(voter) > 3 else 0
+                has_voted = voter[4] if len(voter) > 4 else 0
+            else:
+                voter_id = voter.get('voter_id', 'N/A')
+                voter_name = voter.get('name', 'N/A')
+                has_token = voter.get('has_token', 0)
+                has_voted = voter.get('has_voted', 0)
+            
+            # Determine what data to display based on user role and permissions
+            if is_user_logged_in and is_admin_user:
+                # Admin sees all data unmasked (if toggle enabled) or masked (default)
+                if show_unmask_option:
+                    display_id = voter_id
+                    display_name = voter_name
+                else:
+                    display_id = MASK_VALUE
+                    display_name = MASK_VALUE
+            elif is_user_logged_in and show_unmask_option and voter_id == current_voter_id:
+                # Logged-in voter can unmask only their own data
+                display_id = voter_id
+                display_name = voter_name
+            else:
+                # Everyone else (anonymous or non-matching voters) sees masked data
+                display_id = MASK_VALUE
+                display_name = MASK_VALUE
+            
+            # Display voter info in 4 columns
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.write(f"📧 {display_id}")
+            with col2:
+                st.write(f"👤 {display_name}")
+            with col3:
+                token_status = "✅" if has_token else "⏳"
+                st.write(f"{token_status} Token: {has_token}")
+            with col4:
+                vote_status = "✅" if has_voted else "⏳"
+                st.write(f"{vote_status} Voted: {has_voted}")
+    else:
+        st.info("No voters registered yet. Be the first to register!")
+    
+    st.divider()
+    
+    # ===== GET STARTED SECTION =====
+    st.subheader("🚀 Get Started")
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.markdown("""
+        **New Voter?**
+        
+        [Register Voter →](/?page=Register%20Voter)
+        """)
+    
+    with col2:
+        st.markdown("""
+        **Request Token?**
+        
+        [Request Token →](/?page=Request%20Token)
+        """)
+    
+    with col3:
+        st.markdown("""
+        **Ready to Vote?**
+        
+        [Cast Vote →](/?page=Cast%20Vote)
+        """)
 
 
 @require_roles('voter', 'admin')

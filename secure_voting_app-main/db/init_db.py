@@ -1,6 +1,50 @@
 # db/init_db.py
+import sqlite3
 from db.connection import get_conn
 from utils.logger import add_log
+
+# ==================== DATABASE ROLES DEFINITION ====================
+# These roles define access permissions at the database level
+DB_ROLES = {
+    "admin": {
+        "description": "Full database access - manages system configuration, users, and voting process",
+        "permissions": {
+            "voters": ["SELECT", "INSERT", "UPDATE", "DELETE"],
+            "ballots": ["SELECT", "INSERT", "UPDATE", "DELETE"],
+            "encrypted_ballots": ["SELECT", "INSERT", "UPDATE", "DELETE"],
+            "tokens": ["SELECT", "INSERT", "UPDATE", "DELETE"],
+            "logs": ["SELECT", "INSERT", "UPDATE", "DELETE"],
+            "mixnet_proofs": ["SELECT", "INSERT", "UPDATE", "DELETE"],
+            "login_attempts": ["SELECT", "INSERT", "UPDATE", "DELETE"],
+            "db_roles": ["SELECT", "INSERT", "UPDATE", "DELETE"],
+            "role_permissions": ["SELECT", "INSERT", "UPDATE", "DELETE"]
+        }
+    },
+    "voter": {
+        "description": "Limited access - voters can cast votes and view results",
+        "permissions": {
+            "voters": ["SELECT"],  # Read-only access to voter info
+            "ballots": ["SELECT"],  # View available candidates
+            "encrypted_ballots": ["INSERT", "SELECT"],  # Submit encrypted votes and check status
+            "tokens": ["SELECT"],  # Verify token validity
+            "logs": ["SELECT"],  # View audit logs (anonymized)
+            "tally_results": ["SELECT"]  # View voting results
+        }
+    },
+    "auditor": {
+        "description": "Read-only access - reviews system logs and verifies integrity",
+        "permissions": {
+            "voters": ["SELECT"],  # View voter information
+            "ballots": ["SELECT"],  # View ballot candidates
+            "encrypted_ballots": ["SELECT"],  # Verify encrypted submissions
+            "tokens": ["SELECT"],  # Verify token usage
+            "logs": ["SELECT"],  # Full audit log access
+            "mixnet_proofs": ["SELECT"],  # Verify mixnet integrity
+            "login_attempts": ["SELECT"],  # Review login history
+            "db_roles": ["SELECT"]  # View role definitions
+        }
+    }
+}
 
 def verify_schema_integrity():
     """
@@ -14,10 +58,13 @@ def verify_schema_integrity():
     required_schema = {
         "voters": ["voter_id", "name", "has_token", "has_voted", "password_hash", "password_salt"],
         "ballots": ["ballot_id", "candidate"],
+        "encrypted_ballots": ["id", "transmission_id", "nonce", "ciphertext", "tag", "envelope_hash", "received_at"],
         "tokens": ["id", "voter_id", "token_hash", "signature", "issued_at"],
         "logs": ["id", "message", "log_type", "created_at"],
         "mixnet_proofs": ["id", "layer", "input_count", "output_count", "proof_hash"],
-        "login_attempts": ["id", "email", "attempt_count", "last_attempt_time", "lockout_until", "created_at"]
+        "login_attempts": ["id", "email", "attempt_count", "last_attempt_time", "lockout_until", "created_at"],
+        "db_roles": ["role_id", "role_name", "description"],
+        "role_permissions": ["id", "role_id", "resource", "permission"]
     }
     
     for table_name, required_cols in required_schema.items():
@@ -162,6 +209,43 @@ def init_db():
         )
     """)
     
+    # Create encrypted ballots table for end-to-end encrypted votes
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS encrypted_ballots (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            transmission_id TEXT NOT NULL UNIQUE,
+            nonce TEXT NOT NULL,
+            ciphertext TEXT NOT NULL,
+            tag TEXT NOT NULL,
+            envelope_hash TEXT NOT NULL,
+            received_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    
+    # --- CREATE DATABASE ROLES TABLES ---
+    # Table to store role definitions
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS db_roles (
+            role_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            role_name TEXT NOT NULL UNIQUE,
+            description TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    
+    # Table to store role-permission mappings
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS role_permissions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            role_id INTEGER NOT NULL,
+            resource TEXT NOT NULL,
+            permission TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(role_id) REFERENCES db_roles(role_id) ON DELETE CASCADE,
+            UNIQUE(role_id, resource, permission)
+        )
+    """)
+    
     # --- POST-CREATION VALIDATION ---
     # Verify tokens table has required columns
     cur.execute("PRAGMA table_info(tokens)")
@@ -175,6 +259,42 @@ def init_db():
     if "signature" not in token_col_names:
         add_log("ERROR: tokens table missing signature column after creation", "error")
         raise RuntimeError("Database schema error: tokens table missing signature column")
+    
+    # --- INITIALIZE DATABASE ROLES AND PERMISSIONS ---
+    # Check if roles already exist
+    cur.execute("SELECT COUNT(*) FROM db_roles")
+    role_count = cur.fetchone()[0]
+    
+    if role_count == 0:
+        # Insert roles
+        for role_name, role_config in DB_ROLES.items():
+            cur.execute(
+                """INSERT INTO db_roles (role_name, description) 
+                   VALUES (?, ?)""",
+                (role_name, role_config["description"])
+            )
+            role_id = cur.lastrowid
+            add_log(f"Created database role: {role_name}", "info")
+            
+            # Insert permissions for this role
+            for resource, permissions in role_config["permissions"].items():
+                for permission in permissions:
+                    try:
+                        cur.execute(
+                            """INSERT INTO role_permissions (role_id, resource, permission) 
+                               VALUES (?, ?, ?)""",
+                            (role_id, resource, permission)
+                        )
+                    except sqlite3.IntegrityError:
+                        # Permission already exists, skip
+                        pass
+            
+            add_log(
+                f"Initialized {len(role_config['permissions'])} resources with permissions for role '{role_name}'",
+                "info"
+            )
+    else:
+        add_log(f"Database roles already initialized ({role_count} roles found)", "info")
 
     conn.commit()
     conn.close()
@@ -182,10 +302,6 @@ def init_db():
     
     # Final schema verification
     verify_schema_integrity()
-
-if __name__ == "__main__":
-    init_db()
-    print("Database created successfully")
 
 if __name__ == "__main__":
     init_db()

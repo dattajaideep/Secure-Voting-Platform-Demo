@@ -3,6 +3,7 @@ from .ballot_repository import BallotRepository
 from .mixnet_repository import MixNetRepository
 from .log_repository import LogRepository
 from .token_repository import TokenRepository
+from .encrypted_ballot_repository import EncryptedBallotRepository
 
 # db/init_db.py
 from db.connection import get_conn

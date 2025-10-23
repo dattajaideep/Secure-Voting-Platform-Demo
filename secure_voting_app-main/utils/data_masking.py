@@ -84,19 +84,18 @@ def mask_dict(data: Dict[str, Any], unmask: bool = False, allowed_fields: set = 
     if not data:
         return data
     
-    if unmask:
-        # Return unmasked data as-is
-        return data
-    
     if allowed_fields is None:
         allowed_fields = PUBLIC_FIELDS
     
     masked_data = {}
     for key, value in data.items():
-        if key in allowed_fields:
+        if unmask:
+            # Return unmasked - all fields visible
+            masked_data[key] = value
+        elif key in allowed_fields or key.lower() in {'has_token', 'has_voted', 'token_hash', 'signature', 'ballot_id', 'candidate', 'id', 'timestamp', 'created_at', 'updated_at', 'role'}:
             # Public field - don't mask
             masked_data[key] = value
-        elif key.lower() in SENSITIVE_FIELDS or key.lower().endswith('_id') or key.lower().endswith('_name'):
+        elif key.lower() in SENSITIVE_FIELDS or key.lower().endswith('_id') or key.lower().endswith('_name') or key.lower() == 'voter_id' or key.lower() == 'email' or key.lower() == 'name':
             # Sensitive field - mask it
             masked_data[key] = MASK_VALUE
         else:

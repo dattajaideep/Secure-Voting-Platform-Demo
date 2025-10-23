@@ -39,6 +39,42 @@ class VoterRepository:
         conn.close()
         add_log(f"Voter {voter_id} marked as voted", "info")
 
+    def get_voter_by_email(self, email: str):
+        """
+        Get voter information by email (voter_id).
+        
+        Args:
+            email: The voter's email address (used as voter_id)
+            
+        Returns:
+            Dictionary with voter information or None if not found
+        """
+        conn = get_conn()
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM voters WHERE voter_id = ?", (email,))
+        result = cur.fetchone()
+        conn.close()
+        
+        if result is None:
+            return None
+        
+        return dict(result)
+
+    def update_vote_status(self, email: str, voted: bool):
+        """
+        Update voter's voted status.
+        
+        Args:
+            email: The voter's email address (used as voter_id)
+            voted: Boolean indicating if voter has voted
+        """
+        conn = get_conn()
+        cur = conn.cursor()
+        cur.execute("UPDATE voters SET has_voted = ? WHERE voter_id = ?", (voted, email))
+        conn.commit()
+        conn.close()
+        add_log(f"Updated vote status for {email} → {voted}", "info")
+
     def has_voter_voted(self, voter_id: str) -> bool:
         """
         Check if a voter has already cast their vote.

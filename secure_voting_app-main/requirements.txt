@@ -16,3 +16,4 @@ streamlit_oauth
 pyotp
 qrcode
 pytest
+pycryptodome
