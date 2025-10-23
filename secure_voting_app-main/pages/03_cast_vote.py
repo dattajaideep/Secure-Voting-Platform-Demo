@@ -1,0 +1,34 @@
+# Cast vote page
+# pages/03_cast_vote.py
+import streamlit as st
+from services.voter_client import VoterClient
+from services.voting_authority import VotingAuthority
+from db.repositories import VoterRepository, TokenRepository, BallotRepository
+from utils.logger import add_log
+from db.connection import get_conn
+
+st.title("3️⃣ Cast Vote")
+
+voter_repo = VoterRepository()
+token_repo = TokenRepository()
+ballot_repo = BallotRepository()
+authority = VotingAuthority(get_conn())
+
+voters = [v for v in voter_repo.get_all_voters() if v["has_token"] and not v["has_voted"]]
+voter_options = [v["voter_id"] for v in voters]
+
+candidates = ["Candidate A", "Candidate B", "Candidate C"]
+
+selected_voter = st.selectbox("Select Voter", [""] + voter_options)
+selected_candidate = st.selectbox("Select Candidate", [""] + candidates)
+
+if st.button("Cast Vote"):
+    if not selected_voter or not selected_candidate:
+        st.error("Select both voter and candidate")
+    else:
+        client = VoterClient(authority)
+        token = token_repo.get_token_by_voter(selected_voter)
+        ballot_id = client.cast_vote(token["token_hash"], int(token["signature"], 16), selected_candidate)
+        st.success(f"Vote cast successfully! Ballot ID: {ballot_id}")
+        voter_repo.mark_voted(selected_voter)
+        add_log(f"Vote cast by {selected_voter}, ballot {ballot_id}", "success")
