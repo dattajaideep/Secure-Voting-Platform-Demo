@@ -38,3 +38,24 @@ class VoterRepository:
         conn.commit()
         conn.close()
         add_log(f"Voter {voter_id} marked as voted", "info")
+
+    def has_voter_voted(self, voter_id: str) -> bool:
+        """
+        Check if a voter has already cast their vote.
+        
+        Args:
+            voter_id: The voter's unique identifier
+            
+        Returns:
+            True if voter has already voted, False otherwise
+        """
+        conn = get_conn()
+        cur = conn.cursor()
+        cur.execute("SELECT has_voted FROM voters WHERE voter_id = ?", (voter_id,))
+        result = cur.fetchone()
+        conn.close()
+        
+        if result is None:
+            return False
+        
+        return bool(result['has_voted'])

@@ -44,3 +44,18 @@ class TokenRepository:
         count = cur.fetchone()[0]
         cur.close()
         return count > 0
+
+    def get_voter_id_by_token_hash(self, token_hash: str):
+        """Get voter_id associated with a token hash"""
+        conn = get_conn()
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT voter_id FROM tokens WHERE token_hash = ?",
+            (token_hash,)
+        )
+        row = cur.fetchone()
+        cur.close()
+        
+        if row:
+            return row["voter_id"]
+        return None

@@ -6,6 +6,7 @@ from pathlib import Path
 from services.secure_rsa import SecureRSA
 from db.repositories.token_repository import TokenRepository
 from db.repositories.ballot_repository import BallotRepository
+from db.repositories.voter_repository import VoterRepository
 # from dotenv import load_dotenv
 from db.connection import get_conn
 
@@ -33,6 +34,7 @@ class VotingAuthority:
         
         self.token_repo = TokenRepository()
         self.ballot_repo = BallotRepository()
+        self.voter_repo = VoterRepository()
     # self.registered_voters will be set in load_voters_from_db
         self.used_token_hashes = set()
         self.load_voters_from_db()
@@ -62,6 +64,20 @@ class VotingAuthority:
         return self.rsa.mod_pow(blinded_hash, self.private_key["d"], self.private_key["n"])
 
     def verify_token_and_cast_ballot(self, token_hash: str, signature: int, candidate: str):
+        """
+        Verify token and cast ballot with multi-voting prevention.
+        
+        Args:
+            token_hash: The cryptographic hash of the token
+            signature: The RSA signature for the token
+            candidate: The candidate the voter is voting for
+            
+        Returns:
+            A ballot ID for confirmation
+            
+        Raises:
+            Exception: If token is invalid, voter not found, or voter has already voted
+        """
         # Ensure signature is an integer
         if isinstance(signature, str):
             signature_int = int(signature, 16)
@@ -72,8 +88,21 @@ class VotingAuthority:
         if not self.rsa.verify_hash(token_hash, signature_int, self.public_key):
             raise Exception("Invalid token")
         
+        # Get voter_id from token_hash
+        voter_id = self.token_repo.get_voter_id_by_token_hash(token_hash)
+        if not voter_id:
+            raise Exception("Token not found in system")
+        
+        # CHECK: Prevent multi-voting - voter cannot vote twice
+        if self.voter_repo.has_voter_voted(voter_id):
+            raise Exception(f"Voter {voter_id} has already cast their vote. One vote per voter is allowed.")
+        
         # Add the ballot with the candidate
         self.ballot_repo.add_ballot(candidate)
+        
+        # Mark voter as voted
+        self.voter_repo.mark_voted(voter_id)
+        
         # Return a ballot ID for confirmation
         return secrets.token_hex(8)
 

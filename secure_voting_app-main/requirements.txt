@@ -15,3 +15,4 @@ pytz
 streamlit_oauth
 pyotp
 qrcode
+pytest
