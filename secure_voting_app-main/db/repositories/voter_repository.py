@@ -1,6 +1,7 @@
 # db/repositories/voter_repository.py
 from db.connection import get_conn
 from utils.logger import add_log
+from utils.password_utils import hash_password, verify_password, encode_hash_salt, decode_hash_salt
 
 class VoterRepository:
     def add_voter(self, voter_id: str, name: str):

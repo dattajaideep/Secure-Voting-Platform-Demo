@@ -12,7 +12,7 @@ def verify_schema_integrity():
     
     # Required schema: table -> list of required columns
     required_schema = {
-        "voters": ["voter_id", "name", "has_token", "has_voted"],
+        "voters": ["voter_id", "name", "has_token", "has_voted", "password_hash", "password_salt"],
         "ballots": ["ballot_id", "candidate"],
         "tokens": ["id", "voter_id", "token_hash", "signature", "issued_at"],
         "logs": ["id", "message", "log_type", "created_at"],
@@ -92,7 +92,9 @@ def init_db():
             voter_id TEXT PRIMARY KEY,
             name TEXT NOT NULL,
             has_token INTEGER DEFAULT 0,
-            has_voted INTEGER DEFAULT 0
+            has_voted INTEGER DEFAULT 0,
+            password_hash TEXT,
+            password_salt TEXT
         )
     """)
 
