@@ -1,5 +1,8 @@
 import os
 import pytz
+import hashlib
+import hmac
+import secrets
 from datetime import datetime, timedelta
 from typing import Dict, Tuple
 from dotenv import load_dotenv
@@ -12,6 +15,10 @@ load_dotenv()
 MAX_ATTEMPTS = int(os.getenv("MAX_LOGIN_ATTEMPTS", "3"))
 LOCKOUT_MINUTES = int(os.getenv("LOGIN_LOCKOUT_MINUTES", "30"))
 LOCKOUT_DURATION = LOCKOUT_MINUTES * 60  # Convert minutes to seconds
+
+# Security keys from .env
+SECRET_KEY = os.getenv('SECRET_KEY', 'default_secret_key')
+SESSION_SECRET = os.getenv('SESSION_SECRET', 'default_session_secret')
 
 # Initialize login attempts table
 LoginAttemptRepository.create_table()
@@ -98,3 +105,20 @@ def record_login_attempt(email: str, success: bool) -> Tuple[bool, str]:
     LoginAttemptRepository.increment_attempts(email)
     remaining_attempts = MAX_ATTEMPTS - attempts
     return False, f"Login failed. {remaining_attempts} attempts remaining before lockout."
+
+def generate_csrf_token() -> str:
+    """Generate CSRF token for form protection"""
+    return secrets.token_hex(32)
+
+def verify_csrf_token(token: str, stored_token: str) -> bool:
+    """Verify CSRF token using constant-time comparison"""
+    return hmac.compare_digest(token, stored_token)
+
+def get_security_headers() -> dict:
+    """Get security headers for responses"""
+    return {
+        'X-Content-Type-Options': 'nosniff',
+        'X-Frame-Options': 'DENY',
+        'X-XSS-Protection': '1; mode=block',
+        'Strict-Transport-Security': 'max-age=31536000; includeSubDomains'
+    }

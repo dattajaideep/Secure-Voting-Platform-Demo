@@ -181,3 +181,28 @@ def get_current_db_role():
     """Get the current user's database role"""
     user_role = get_user_role()
     return get_db_role_for_user(user_role)
+
+
+def require_roles(*allowed_roles):
+    """Decorator to restrict access to functions (pages) to specific application roles.
+
+    Usage:
+        @require_roles('voter', 'admin')
+        def render_page():
+            ...
+
+    If the current user's role is not in allowed_roles, an access denied message is shown
+    and Streamlit execution is stopped for that page.
+    """
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            current = get_user_role()
+            if current not in allowed_roles:
+                st.error("🚫 Access Denied: You do not have permission to view this page")
+                st.info("Please log in with appropriate credentials")
+                st.stop()
+            return func(*args, **kwargs)
+        # Preserve a helpful attribute for introspection
+        wrapper._allowed_roles = allowed_roles
+        return wrapper
+    return decorator

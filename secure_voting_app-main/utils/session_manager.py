@@ -1,9 +1,16 @@
 import streamlit as st
+import os
 from datetime import datetime, timedelta
+from dotenv import load_dotenv
 from utils.logger import add_log
 
-# Session timeout duration in minutes
-SESSION_TIMEOUT = 5
+# Load environment variables
+load_dotenv()
+
+# Session timeout duration from .env (in seconds, default 30 minutes)
+SESSION_TIMEOUT_SECONDS = int(os.getenv('SESSION_TIMEOUT', '1800'))
+SESSION_TIMEOUT = SESSION_TIMEOUT_SECONDS // 60  # Convert to minutes for display
+SESSION_SECRET = os.getenv('SESSION_SECRET', 'default_session_secret')
 
 def update_last_activity():
     """Update the last activity timestamp in the session state"""
@@ -17,8 +24,8 @@ def check_session_timeout():
 
     # Calculate time difference
     time_diff = datetime.now() - st.session_state.last_activity
-    timeout_duration = timedelta(minutes=SESSION_TIMEOUT)
-    warning_duration = timedelta(minutes=SESSION_TIMEOUT - 1)  # Warning 1 minute before timeout
+    timeout_duration = timedelta(seconds=SESSION_TIMEOUT_SECONDS)
+    warning_duration = timedelta(seconds=SESSION_TIMEOUT_SECONDS - 60)  # Warning 1 minute before timeout
 
     if time_diff > timeout_duration:
         # Session has expired
@@ -61,7 +68,7 @@ def check_session_timeout():
         modal_container = st.empty()
         with modal_container.container():
             st.error("⚠️ Session Timeout")
-            st.warning("Your session has expired due to 5 minutes of inactivity.")
+            st.warning(f"Your session has expired due to {SESSION_TIMEOUT} minutes of inactivity.")
             if st.button("OK", key="timeout_ok"):
                 modal_container.empty()
                 st.rerun()

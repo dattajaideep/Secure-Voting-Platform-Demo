@@ -2,9 +2,18 @@
 import sqlite3
 import os
 import datetime
+import logging
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Database lives in project root
 DB_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "voting.db")
+
+# Logger configuration from .env
+LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
+LOG_FILE = os.getenv('LOG_FILE', 'voting_platform.log')
 
 def add_log(message, log_type="info"):
     """Writes a log entry directly into SQLite (no circular imports)."""
@@ -35,4 +44,25 @@ def add_log(message, log_type="info"):
 
     # Always print as backup
     print(f"[{timestamp}] ({log_type.upper()}) {message}")
+
+def setup_logger(name: str = 'voting_platform'):
+    """Setup application logger with file output"""
+    logger = logging.getLogger(name)
+    logger.setLevel(getattr(logging, LOG_LEVEL))
+    
+    # File handler
+    file_handler = logging.FileHandler(LOG_FILE)
+    formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+    file_handler.setFormatter(formatter)
+    
+    # Avoid duplicate handlers
+    if not logger.handlers:
+        logger.addHandler(file_handler)
+    
+    return logger
+
+# Initialize default logger
+default_logger = setup_logger()
 

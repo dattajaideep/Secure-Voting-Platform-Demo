@@ -1,16 +1,28 @@
 import streamlit as st
 from streamlit_oauth import OAuth2Component
 from dotenv import load_dotenv
-from utils.roles import is_admin, is_logged_in, get_user_role
+from utils.roles import is_admin, is_logged_in, get_user_role, require_roles
+from utils.data_masking import mask_list, mask_dict, get_display_name, MASK_VALUE, can_voter_unmask_own_data, filter_voter_data, mask_voter_for_self
 import os
 from datetime import datetime
 from utils.session_manager import check_session_timeout, update_last_activity
+from utils.logger import setup_logger
 
 
-# --- Load environment variables (Google OAuth credentials) ---
+# --- Load environment variables ---
 load_dotenv()
+
+# OAuth credentials
 OAUTH_CLIENT_ID = os.getenv("OAUTH_CLIENT_ID")
 OAUTH_CLIENT_SECRET = os.getenv("OAUTH_CLIENT_SECRET")
+
+# Application settings from .env
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
+DEBUG = os.getenv("DEBUG", "false").lower() == "true"
+STREAMLIT_SERVER_PORT = os.getenv("STREAMLIT_SERVER_PORT", "8501")
+
+# Initialize logger
+logger = setup_logger('voting_platform')
 
 # --- Define Available Pages ---
 VALID_PAGES = [
@@ -27,7 +39,7 @@ VALID_PAGES = [
 # --- Local project imports ---
 from db.init_db import init_db
 from db.connection import get_conn
-# from db.repositories.voter_repository import VoterRepository
+from db.repositories.voter_repository import VoterRepository
 from db.repositories.ballot_repository import BallotRepository
 from db.repositories.mixnet_repository import MixNetRepository
 from db.repositories.log_repository import LogRepository
@@ -66,6 +78,11 @@ init_db()
 # --- Streamlit Config ---
 st.set_page_config(page_title="Secure Voting System", page_icon="🗳️", layout="wide")
 
+# Debug mode info
+if DEBUG:
+    st.sidebar.info(f"🔧 Debug Mode | Environment: {ENVIRONMENT} | Port: {STREAMLIT_SERVER_PORT}")
+    logger.debug(f"Application started in {ENVIRONMENT} mode")
+
 # Add custom CSS for timeout popup
 st.markdown("""
 <style>
@@ -103,6 +120,18 @@ if is_logged_in():
     
     if is_admin():
         st.sidebar.success(f"🔑 Admin: {st.session_state.user_email}")
+        # Add unmask toggle for admins to view unmasked voter data
+        if st.sidebar.checkbox("🔓 Unmask Voter Data", value=st.session_state.get('unmask_voter_data', False)):
+            st.session_state.unmask_voter_data = True
+        else:
+            st.session_state.unmask_voter_data = False
+    elif get_user_role() == 'voter':
+        st.sidebar.success(f"👤 Voter: {st.session_state.get('voter_id', 'Unknown')}")
+        # Add unmask toggle for voters to view their own data unmasked
+        if st.sidebar.checkbox("🔓 View My Details", value=st.session_state.get('unmask_own_voter_data', False)):
+            st.session_state.unmask_own_voter_data = True
+        else:
+            st.session_state.unmask_own_voter_data = False
     else:
         st.sidebar.success(f"👤 User: {st.session_state.user_email}")
     
@@ -132,14 +161,32 @@ mixnet = VerifiableMixNet()
 
 
 # --- Navigation Sidebar ---
-menu = st.sidebar.radio(
-    "Navigate",
-    VALID_PAGES
-)
+# The navigation radio is intentionally disabled to make the sidebar non-interactive
+# Users will still see the available pages but cannot change them from the sidebar.
+try:
+    # Newer Streamlit versions support the `disabled` parameter
+    menu = st.sidebar.radio(
+        "Navigate",
+        VALID_PAGES,
+        index=0,
+        disabled=True
+    )
+except TypeError:
+    # Fallback for older Streamlit versions that don't accept `disabled`
+    # Use a read-only selectbox to display the same content without allowing changes
+    menu = st.sidebar.selectbox(
+        "Navigate",
+        VALID_PAGES,
+        index=0,
+        disabled=True
+    )
 
 
-# --- Page: Home ---
-if menu == "Home":
+
+
+# --- Page render functions ---
+@require_roles('voter', 'admin', 'guest')
+def render_home():
     st.header("Welcome to the Secure Electronic Voting Demo")
     st.markdown("""
         This system shows how secure, transparent electronic voting can work.
@@ -147,8 +194,8 @@ if menu == "Home":
     """)
 
 
-# --- Page: Register Voter ---
-elif menu == "Register Voter":
+@require_roles('voter', 'admin')
+def render_register_voter():
     st.header("Register Voter")
     st.markdown("""
     Register a new voter in the system. Each voter must have a unique ID and a valid name.
@@ -180,46 +227,99 @@ elif menu == "Register Voter":
     st.markdown("---")
     voters = voter_repo.get_all_voters()
     if voters:
+        # Apply data masking - unmask only if admin explicitly enabled it
+        should_unmask = st.session_state.get('unmask_voter_data', False) and is_admin()
+        masked_voters = mask_list(voters, unmask=should_unmask)
         st.subheader("📊 Registered Voters")
-        st.dataframe(voters, use_container_width=True, hide_index=True)
+        st.dataframe(masked_voters, use_container_width=True, hide_index=True)
     else:
         st.info("ℹ️ No voters registered yet. Start by registering your first voter above.")
 
 
-# --- Page: Request Token ---
-elif menu == "Request Token":
+@require_roles('voter', 'admin')
+def render_request_token():
     st.header("Request Voting Token")
     st.markdown("""
     Issue anonymous voting tokens to registered voters. Each voter can only receive one token,
     which they will use to cast their vote while maintaining ballot privacy.
     """)
     
-    voters = voter_repo.get_all_voters()
-    voter_map = {v["voter_id"]: v["name"] for v in voters if not v["has_token"]}
+    current_role = get_user_role()
+    current_voter_id = st.session_state.get('voter_id', None)
     
-    if voter_map:
-        voter_id = st.selectbox("Select Voter", list(voter_map.keys()), format_func=lambda x: voter_map[x])
-        if st.button("Issue Token", type="primary"):
-            try:
-                client = VoterClient(authority)
-                token_hash, signature = client.create_blind_token(voter_id)
-                voter_repo.update_token_status(voter_id, True)
-                add_log(f"Issued token to {voter_map[voter_id]}", "success")
-                st.success(f"✅ **Token Issued Successfully!**\n\nVoter **{voter_map[voter_id]}** is now eligible to cast their vote.")
-            except Exception as e:
-                st.error("❌ **Token Issuance Failed**", icon="⚠️")
-                st.warning("An error occurred while issuing the token. Please try again or contact an administrator.")
+    voters = voter_repo.get_all_voters()
+    
+    # If logged-in voter (not admin), show only their own data
+    if current_role == 'voter' and current_voter_id:
+        # Filter to show only this voter's data
+        their_voters = [v for v in voters if v['voter_id'] == current_voter_id and not v["has_token"]]
+        
+        if their_voters:
+            voter_data = their_voters[0]
+            should_unmask = st.session_state.get('unmask_own_voter_data', False)
+            
+            # Show voter's own data with toggle
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                if should_unmask:
+                    st.info(f"📋 **Your Voter ID:** {voter_data['voter_id']}")
+                    st.write(f"**Name:** {voter_data['name']}")
+                else:
+                    st.info(f"📋 **Your Voter ID:** {MASK_VALUE}")
+                    st.write(f"**Name:** {MASK_VALUE}")
+            
+            if st.button("Request Token", type="primary"):
+                try:
+                    client = VoterClient(authority)
+                    token_hash, signature = client.create_blind_token(current_voter_id)
+                    voter_repo.update_token_status(current_voter_id, True)
+                    add_log(f"Voter {current_voter_id} requested token", "success")
+                    st.success(f"✅ **Token Issued Successfully!**\n\nYou are now eligible to cast your vote.")
+                except Exception as e:
+                    st.error("❌ **Token Issuance Failed**", icon="⚠️")
+                    st.warning("An error occurred while issuing your token. Please try again or contact an administrator.")
+        else:
+            st.warning("⚠️ **No Token Needed**", icon="🎯")
+            st.markdown("""
+            You already have a voting token or are not eligible at this time.
+            Please proceed to the **Cast Vote** page to vote.
+            """)
+    
+    # If admin, show all voters with masking controls
     else:
-        st.warning("⚠️ **No Voters Available**", icon="📋")
-        st.markdown("""
-        All registered voters already have voting tokens. To issue more tokens:
-        1. Go to **Register Voter** and register new voters
-        2. Return to this page to issue them tokens
-        """)
+        voter_map = {v["voter_id"]: v["name"] for v in voters if not v["has_token"]}
+        # Create display map with masking
+        should_unmask = st.session_state.get('unmask_voter_data', False) and is_admin()
+        display_map = {}
+        for voter_id, name in voter_map.items():
+            if should_unmask:
+                display_map[voter_id] = f"{name} (ID: {voter_id})"
+            else:
+                display_map[voter_id] = f"{MASK_VALUE} (ID: {MASK_VALUE})"
+        
+        if voter_map:
+            voter_id = st.selectbox("Select Voter", list(voter_map.keys()), format_func=lambda x: display_map.get(x, f"{MASK_VALUE} (ID: {MASK_VALUE})"))
+            if st.button("Issue Token", type="primary"):
+                try:
+                    client = VoterClient(authority)
+                    token_hash, signature = client.create_blind_token(voter_id)
+                    voter_repo.update_token_status(voter_id, True)
+                    add_log(f"Issued token to {voter_map[voter_id]}", "success")
+                    st.success(f"✅ **Token Issued Successfully!**\n\nVoter **{voter_map[voter_id]}** is now eligible to cast their vote.")
+                except Exception as e:
+                    st.error("❌ **Token Issuance Failed**", icon="⚠️")
+                    st.warning("An error occurred while issuing the token. Please try again or contact an administrator.")
+        else:
+            st.warning("⚠️ **No Voters Available**", icon="📋")
+            st.markdown("""
+            All registered voters already have voting tokens. To issue more tokens:
+            1. Go to **Register Voter** and register new voters
+            2. Return to this page to issue them tokens
+            """)
 
 
-# --- Page: Cast Vote ---
-elif menu == "Cast Vote":
+@require_roles('voter')
+def render_cast_vote():
     st.header("Cast Vote")
     st.markdown("""
     Cast your vote securely and anonymously. You can only vote once, so choose your candidate carefully.
@@ -228,12 +328,20 @@ elif menu == "Cast Vote":
     
     voters = voter_repo.get_all_voters()
     eligible = {v["voter_id"]: v["name"] for v in voters if v["has_token"] and not v["has_voted"]}
+    # Create display map with masking for voters
+    should_unmask = st.session_state.get('unmask_voter_data', False) and is_admin()
+    eligible_display = {}
+    for voter_id, name in eligible.items():
+        if should_unmask:
+            eligible_display[voter_id] = f"{name} (ID: {voter_id})"
+        else:
+            eligible_display[voter_id] = f"{MASK_VALUE} (ID: {MASK_VALUE})"
     candidates = ["Candidate A", "Candidate B", "Candidate C"]
     
     if eligible:
         col1, col2 = st.columns(2)
         with col1:
-            voter_id = st.selectbox("Select Voter", list(eligible.keys()), format_func=lambda x: eligible[x])
+            voter_id = st.selectbox("Select Voter", list(eligible.keys()), format_func=lambda x: eligible_display.get(x, f"{MASK_VALUE} (ID: {MASK_VALUE})"))
         with col2:
             candidate = st.selectbox("Select Candidate", candidates)
         
@@ -264,8 +372,17 @@ elif menu == "Cast Vote":
         """)
 
 
-# --- Page: Mix Network (Admin Only) ---
+# --- Page dispatch ---
+if menu == "Home":
+    render_home()
+elif menu == "Register Voter":
+    render_register_voter()
+elif menu == "Request Token":
+    render_request_token()
+elif menu == "Cast Vote":
+    render_cast_vote()
 elif menu == "Mix Network":
+    # Admin-only page
     if not is_admin():
         st.error("🚫 Access Denied: This page is only accessible to administrators")
         st.info("Please log in with admin credentials")
@@ -283,9 +400,6 @@ elif menu == "Mix Network":
         if "mixed_ballots" in st.session_state:
             st.subheader("Mixed Ballots")
             st.table(st.session_state.mixed_ballots)
-
-
-# --- Page: Tally Results (Admin Only) ---
 elif menu == "Tally Results":
     if not is_admin():
         st.error("🚫 Access Denied: This page is only accessible to administrators")
@@ -301,9 +415,6 @@ elif menu == "Tally Results":
                 st.write(f"{c}: {count} votes")
         else:
             st.info("Run the MixNet first to anonymize ballots.")
-
-
-# --- Page: Logs (Admin Only) ---
 elif menu == "Logs":
     if not is_admin():
         st.error("🚫 Access Denied: This page is only accessible to administrators")
@@ -315,3 +426,5 @@ elif menu == "Logs":
             st.table(logs)
         else:
             st.info("No activity logs found.")
+else:
+    handle_404_error()

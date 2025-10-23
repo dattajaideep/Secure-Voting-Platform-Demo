@@ -12,3 +12,6 @@ pandas
 numpy
 bcrypt
 pytz
+streamlit_oauth
+pyotp
+qrcode

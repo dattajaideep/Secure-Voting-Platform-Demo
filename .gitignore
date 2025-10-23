@@ -42,6 +42,11 @@ env/
 .env.local
 .env.*.local
 
+# Deployment salts and other sensitive per-deployment artifacts
+# .salt stores static password salt used by the app; keep it out of VCS
+.salt
+.salt*
+
 # Secrets and keys
 voting_keys.json
 *.key

@@ -2,6 +2,7 @@
 import smtplib
 import random
 import os
+import pyotp
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from dotenv import load_dotenv
@@ -10,12 +11,36 @@ load_dotenv()
 
 GMAIL_USER = os.getenv("GMAIL_USER")
 GMAIL_PASSWORD = os.getenv("GMAIL_APP_PASSWORD")
+OTP_ISSUER = os.getenv("OTP_ISSUER", "SecureVotingPlatform")
+OTP_WINDOW = int(os.getenv("OTP_WINDOW", "1"))
 
 
 def generate_otp():
     """Generate a 6-digit OTP"""
     return random.randint(100000, 999999)
 
+def create_totp_secret(user_email: str) -> dict:
+    """Create TOTP secret for user 2FA"""
+    secret = pyotp.random_base32()
+    totp = pyotp.TOTP(secret)
+    provisioning_uri = totp.provisioning_uri(
+        name=user_email,
+        issuer_name=OTP_ISSUER
+    )
+    return {
+        'secret': secret,
+        'provisioning_uri': provisioning_uri
+    }
+
+def verify_totp(secret: str, token: str) -> bool:
+    """Verify TOTP token"""
+    totp = pyotp.TOTP(secret)
+    return totp.verify(token, valid_window=OTP_WINDOW)
+
+def get_current_totp(secret: str) -> str:
+    """Get current TOTP code"""
+    totp = pyotp.TOTP(secret)
+    return totp.now()
 
 def send_otp_email(recipient_email, otp):
     """Send OTP via Gmail SMTP"""
