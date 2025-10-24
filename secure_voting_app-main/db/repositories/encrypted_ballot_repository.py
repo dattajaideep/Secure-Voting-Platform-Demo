@@ -15,6 +15,14 @@ class EncryptedBallotRepository:
     
     def __init__(self):
         """Initialize the encrypted ballot repository."""
+        # Ensure database schema is initialized (idempotent operation)
+        try:
+            from db.init_db import init_db
+            init_db()
+        except Exception as e:
+            # If init_db fails, log it but continue - caller will handle DB errors
+            add_log(f"Warning: DB initialization in repository failed: {str(e)}", "warning")
+        
         self.conn = get_conn()
     
     def add_encrypted_ballot(self, transmission_id: str, nonce: str, 
