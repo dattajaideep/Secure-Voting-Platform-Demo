@@ -3,27 +3,22 @@ streamlit
 requests
 cryptography
 python-dotenv
-
-
+streamlit
+requests
+cryptography
+python-dotenv
 google-auth
 google-auth-oauthlib
 google-auth-httplib2
-streamlit-oauth
-
-# Database
 psycopg2-binary
 SQLAlchemy
-
-# Image Processing
 Pillow
-
-# Testing & Development
+pandas
+numpy
+bcrypt
+pytz
+streamlit_oauth
+pyotp
+qrcode
 pytest
-pytest-cov
-flake8
-black
-isort
-mypy
-
-# Logging & Utilities
-python-logging-loki
+pycryptodome
