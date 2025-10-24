@@ -17,7 +17,8 @@ DB_ROLES = {
             "mixnet_proofs": ["SELECT", "INSERT", "UPDATE", "DELETE"],
             "login_attempts": ["SELECT", "INSERT", "UPDATE", "DELETE"],
             "db_roles": ["SELECT", "INSERT", "UPDATE", "DELETE"],
-            "role_permissions": ["SELECT", "INSERT", "UPDATE", "DELETE"]
+            "role_permissions": ["SELECT", "INSERT", "UPDATE", "DELETE"],
+            "audit_log": ["SELECT", "INSERT", "UPDATE", "DELETE"]  # Full access to audit logs
         }
     },
     "voter": {
@@ -41,7 +42,8 @@ DB_ROLES = {
             "logs": ["SELECT"],  # Full audit log access
             "mixnet_proofs": ["SELECT"],  # Verify mixnet integrity
             "login_attempts": ["SELECT"],  # Review login history
-            "db_roles": ["SELECT"]  # View role definitions
+            "db_roles": ["SELECT"],  # View role definitions
+            "audit_log": ["SELECT"]  # Read-only access to audit logs - EXCLUSIVE TO AUDITORS
         }
     }
 }
@@ -64,7 +66,8 @@ def verify_schema_integrity():
         "mixnet_proofs": ["id", "layer", "input_count", "output_count", "proof_hash"],
         "login_attempts": ["id", "email", "attempt_count", "last_attempt_time", "lockout_until", "created_at"],
         "db_roles": ["role_id", "role_name", "description"],
-        "role_permissions": ["id", "role_id", "resource", "permission"]
+        "role_permissions": ["id", "role_id", "resource", "permission"],
+        "audit_log": ["audit_id", "table_name", "operation", "timestamp"]
     }
     
     for table_name, required_cols in required_schema.items():
@@ -222,6 +225,21 @@ def init_db():
         )
     """)
     
+    # --- CREATE AUDIT TABLE ---
+    # Table to record every change to the database (INSERT, UPDATE, DELETE)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS audit_log (
+            audit_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            table_name TEXT NOT NULL,
+            operation TEXT NOT NULL,
+            record_id TEXT,
+            old_values TEXT,
+            new_values TEXT,
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            user TEXT DEFAULT 'system'
+        )
+    """)
+    
     # --- CREATE DATABASE ROLES TABLES ---
     # Table to store role definitions
     cur.execute("""
@@ -244,6 +262,154 @@ def init_db():
             FOREIGN KEY(role_id) REFERENCES db_roles(role_id) ON DELETE CASCADE,
             UNIQUE(role_id, resource, permission)
         )
+    """)
+    
+    # --- CREATE AUDIT TRIGGERS ---
+    # Triggers to automatically record changes to all tables
+    
+    # Trigger for voters table INSERT
+    cur.execute("""
+        CREATE TRIGGER IF NOT EXISTS voters_insert_audit
+        AFTER INSERT ON voters
+        BEGIN
+            INSERT INTO audit_log (table_name, operation, record_id, new_values, user)
+            VALUES ('voters', 'INSERT', NEW.voter_id, json_object('voter_id', NEW.voter_id, 'name', NEW.name, 'has_token', NEW.has_token, 'has_voted', NEW.has_voted), 'system');
+        END
+    """)
+    
+    # Trigger for voters table UPDATE
+    cur.execute("""
+        CREATE TRIGGER IF NOT EXISTS voters_update_audit
+        AFTER UPDATE ON voters
+        BEGIN
+            INSERT INTO audit_log (table_name, operation, record_id, old_values, new_values, user)
+            VALUES ('voters', 'UPDATE', NEW.voter_id, 
+                json_object('voter_id', OLD.voter_id, 'name', OLD.name, 'has_token', OLD.has_token, 'has_voted', OLD.has_voted),
+                json_object('voter_id', NEW.voter_id, 'name', NEW.name, 'has_token', NEW.has_token, 'has_voted', NEW.has_voted), 'system');
+        END
+    """)
+    
+    # Trigger for voters table DELETE
+    cur.execute("""
+        CREATE TRIGGER IF NOT EXISTS voters_delete_audit
+        AFTER DELETE ON voters
+        BEGIN
+            INSERT INTO audit_log (table_name, operation, record_id, old_values, user)
+            VALUES ('voters', 'DELETE', OLD.voter_id, json_object('voter_id', OLD.voter_id, 'name', OLD.name, 'has_token', OLD.has_token, 'has_voted', OLD.has_voted), 'system');
+        END
+    """)
+    
+    # Trigger for encrypted_ballots table INSERT
+    cur.execute("""
+        CREATE TRIGGER IF NOT EXISTS encrypted_ballots_insert_audit
+        AFTER INSERT ON encrypted_ballots
+        BEGIN
+            INSERT INTO audit_log (table_name, operation, record_id, new_values, user)
+            VALUES ('encrypted_ballots', 'INSERT', CAST(NEW.id AS TEXT), 
+                json_object('id', NEW.id, 'transmission_id', NEW.transmission_id, 'received_at', NEW.received_at), 'system');
+        END
+    """)
+    
+    # Trigger for encrypted_ballots table UPDATE
+    cur.execute("""
+        CREATE TRIGGER IF NOT EXISTS encrypted_ballots_update_audit
+        AFTER UPDATE ON encrypted_ballots
+        BEGIN
+            INSERT INTO audit_log (table_name, operation, record_id, old_values, new_values, user)
+            VALUES ('encrypted_ballots', 'UPDATE', CAST(NEW.id AS TEXT),
+                json_object('id', OLD.id, 'transmission_id', OLD.transmission_id),
+                json_object('id', NEW.id, 'transmission_id', NEW.transmission_id), 'system');
+        END
+    """)
+    
+    # Trigger for encrypted_ballots table DELETE
+    cur.execute("""
+        CREATE TRIGGER IF NOT EXISTS encrypted_ballots_delete_audit
+        AFTER DELETE ON encrypted_ballots
+        BEGIN
+            INSERT INTO audit_log (table_name, operation, record_id, old_values, user)
+            VALUES ('encrypted_ballots', 'DELETE', CAST(OLD.id AS TEXT), 
+                json_object('id', OLD.id, 'transmission_id', OLD.transmission_id), 'system');
+        END
+    """)
+    
+    # Trigger for tokens table INSERT
+    cur.execute("""
+        CREATE TRIGGER IF NOT EXISTS tokens_insert_audit
+        AFTER INSERT ON tokens
+        BEGIN
+            INSERT INTO audit_log (table_name, operation, record_id, new_values, user)
+            VALUES ('tokens', 'INSERT', CAST(NEW.id AS TEXT), 
+                json_object('id', NEW.id, 'voter_id', NEW.voter_id, 'issued_at', NEW.issued_at), 'system');
+        END
+    """)
+    
+    # Trigger for tokens table DELETE
+    cur.execute("""
+        CREATE TRIGGER IF NOT EXISTS tokens_delete_audit
+        AFTER DELETE ON tokens
+        BEGIN
+            INSERT INTO audit_log (table_name, operation, record_id, old_values, user)
+            VALUES ('tokens', 'DELETE', CAST(OLD.id AS TEXT), 
+                json_object('id', OLD.id, 'voter_id', OLD.voter_id), 'system');
+        END
+    """)
+    
+    # Trigger for ballots table INSERT
+    cur.execute("""
+        CREATE TRIGGER IF NOT EXISTS ballots_insert_audit
+        AFTER INSERT ON ballots
+        BEGIN
+            INSERT INTO audit_log (table_name, operation, record_id, new_values, user)
+            VALUES ('ballots', 'INSERT', CAST(NEW.ballot_id AS TEXT), 
+                json_object('ballot_id', NEW.ballot_id, 'candidate', NEW.candidate), 'system');
+        END
+    """)
+    
+    # Trigger for ballots table UPDATE
+    cur.execute("""
+        CREATE TRIGGER IF NOT EXISTS ballots_update_audit
+        AFTER UPDATE ON ballots
+        BEGIN
+            INSERT INTO audit_log (table_name, operation, record_id, old_values, new_values, user)
+            VALUES ('ballots', 'UPDATE', CAST(NEW.ballot_id AS TEXT),
+                json_object('candidate', OLD.candidate),
+                json_object('candidate', NEW.candidate), 'system');
+        END
+    """)
+    
+    # Trigger for ballots table DELETE
+    cur.execute("""
+        CREATE TRIGGER IF NOT EXISTS ballots_delete_audit
+        AFTER DELETE ON ballots
+        BEGIN
+            INSERT INTO audit_log (table_name, operation, record_id, old_values, user)
+            VALUES ('ballots', 'DELETE', CAST(OLD.ballot_id AS TEXT), 
+                json_object('ballot_id', OLD.ballot_id, 'candidate', OLD.candidate), 'system');
+        END
+    """)
+    
+    # Trigger for login_attempts table INSERT
+    cur.execute("""
+        CREATE TRIGGER IF NOT EXISTS login_attempts_insert_audit
+        AFTER INSERT ON login_attempts
+        BEGIN
+            INSERT INTO audit_log (table_name, operation, record_id, new_values, user)
+            VALUES ('login_attempts', 'INSERT', CAST(NEW.id AS TEXT), 
+                json_object('id', NEW.id, 'email', NEW.email, 'attempt_count', NEW.attempt_count), 'system');
+        END
+    """)
+    
+    # Trigger for login_attempts table UPDATE
+    cur.execute("""
+        CREATE TRIGGER IF NOT EXISTS login_attempts_update_audit
+        AFTER UPDATE ON login_attempts
+        BEGIN
+            INSERT INTO audit_log (table_name, operation, record_id, old_values, new_values, user)
+            VALUES ('login_attempts', 'UPDATE', CAST(NEW.id AS TEXT),
+                json_object('attempt_count', OLD.attempt_count),
+                json_object('attempt_count', NEW.attempt_count), 'system');
+        END
     """)
     
     # --- POST-CREATION VALIDATION ---
