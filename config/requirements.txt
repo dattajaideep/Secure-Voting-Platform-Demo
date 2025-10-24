@@ -1,10 +1,10 @@
-
+# Python Core Dependencies
 streamlit
 requests
 cryptography
 python-dotenv
 
-
+# Authentication & OAuth
 google-auth
 google-auth-oauthlib
 google-auth-httplib2
