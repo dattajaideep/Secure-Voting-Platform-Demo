@@ -1,10 +1,19 @@
-# utils/roles.py
+"""
+Roles and Access Control Module
+
+Manages Role-Based Access Control (RBAC) for the voting platform.
+Defines database and application-level roles with granular permission 
+controls for voters, admins, and guests. Handles authentication state
+management through Streamlit session state.
+"""
+
 import streamlit as st
 import os
 from dotenv import load_dotenv
 
 load_dotenv()
 
+# ===== ADMIN CREDENTIALS =====
 ADMIN_EMAIL = os.getenv("ADMIN_EMAIL")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
 
@@ -12,17 +21,17 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
 # ==================== DATABASE ACCESS ROLES ====================
 class DatabaseRole:
     """SQLite access control roles for the voting platform"""
-    
+
     # Role identifiers
     VOTER_READ = "voter_read"
     ADMIN_FULL = "admin_full"
-    
+
     # Allowed SQL operations per role
     ALLOWED_OPERATIONS = {
         VOTER_READ: ["SELECT"],
         ADMIN_FULL: ["SELECT", "INSERT", "UPDATE", "DELETE", "CREATE", "DROP"]
     }
-    
+
     # Allowed tables per role
     ALLOWED_TABLES = {
         VOTER_READ: {
@@ -40,7 +49,7 @@ class DatabaseRole:
             "mixnet": ["SELECT", "INSERT", "UPDATE", "DELETE"]
         }
     }
-    
+
     # Read-only tables for VOTER_READ
     VOTER_ACCESSIBLE_TABLES = {
         "voters": ["voter_id", "name", "has_token", "has_voted"],
@@ -52,10 +61,10 @@ class DatabaseRole:
 def get_db_role_for_user(user_role: str) -> str:
     """
     Map application user role to database access role
-    
+
     Args:
         user_role: Application user role (e.g., "admin", "voter")
-    
+
     Returns:
         Database role identifier
     """
@@ -70,11 +79,11 @@ def get_db_role_for_user(user_role: str) -> str:
 def can_perform_operation(db_role: str, operation: str) -> bool:
     """
     Check if a database role can perform a specific SQL operation
-    
+
     Args:
         db_role: Database role identifier
         operation: SQL operation (SELECT, INSERT, UPDATE, DELETE, etc.)
-    
+
     Returns:
         True if operation is allowed, False otherwise
     """
@@ -85,11 +94,11 @@ def can_perform_operation(db_role: str, operation: str) -> bool:
 def can_access_table(db_role: str, table_name: str) -> bool:
     """
     Check if a database role can access a specific table
-    
+
     Args:
         db_role: Database role identifier
         table_name: Table name to access
-    
+
     Returns:
         True if table access is allowed, False otherwise
     """
@@ -100,11 +109,11 @@ def can_access_table(db_role: str, table_name: str) -> bool:
 def get_allowed_operations_for_table(db_role: str, table_name: str) -> list:
     """
     Get list of allowed operations for a specific table and role
-    
+
     Args:
         db_role: Database role identifier
         table_name: Table name
-    
+
     Returns:
         List of allowed SQL operations
     """
@@ -132,25 +141,25 @@ def get_user_role():
 def admin_login(email, password):
     """
     Verify admin credentials and set admin session
-    
+
     Args:
         email: Admin email to verify
         password: Admin password to verify
-        
+
     Returns:
         bool: True if login successful, False otherwise
     """
     # Load credentials in case they were updated
     load_dotenv()
-    
+
     # Get current admin credentials
     admin_email = os.getenv("ADMIN_EMAIL")
     admin_password = os.getenv("ADMIN_PASSWORD")
-    
+
     # Verify both email and password match exactly
     if not all([admin_email, admin_password]):
         return False
-        
+
     if email == admin_email and password == admin_password:
         # Set session state for admin
         st.session_state.user_email = email

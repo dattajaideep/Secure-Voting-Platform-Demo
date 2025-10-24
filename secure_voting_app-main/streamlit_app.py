@@ -1,3 +1,11 @@
+"""
+Secure Voting Platform - Main Application
+
+Streamlit-based web application for secure electronic voting system.
+Implements voter registration, authentication, token request, vote casting,
+vote mixing for privacy, and election tally with full audit logging.
+"""
+
 import streamlit as st
 from streamlit_oauth import OAuth2Component
 from dotenv import load_dotenv
@@ -9,7 +17,7 @@ from utils.session_manager import check_session_timeout, update_last_activity
 from utils.logger import setup_logger
 
 
-# --- Load environment variables ---
+# ===== ENVIRONMENT CONFIGURATION =====
 load_dotenv()
 
 # OAuth credentials
@@ -21,10 +29,7 @@ ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 DEBUG = os.getenv("DEBUG", "false").lower() == "true"
 STREAMLIT_SERVER_PORT = os.getenv("STREAMLIT_SERVER_PORT", "8501")
 
-# Initialize logger
-logger = setup_logger('voting_platform')
-
-# --- Define Available Pages ---
+# ===== APPLICATION PAGES =====
 VALID_PAGES = [
     "Home",
     "Register Voter",
@@ -35,8 +40,11 @@ VALID_PAGES = [
     "Logs"
 ]
 
+# Initialize logger
+logger = setup_logger('voting_platform')
 
-# --- Local project imports ---
+
+# ===== LOCAL PROJECT IMPORTS =====
 from db.init_db import init_db
 from db.connection import get_conn
 from db.repositories.voter_repository import VoterRepository
