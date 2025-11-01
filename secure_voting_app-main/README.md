@@ -1,6 +1,36 @@
 # Secure Voting Platform
 
+![Secure Voting Platform Banner](../images/banner.png)
+
 A cryptographically secure, role-based access controlled voting system built with Streamlit, SQLite, and advanced cryptographic primitives.
+
+## System Architecture Overview
+
+![System Architecture Overview](../images/System Arch Overview.png)
+
+The system is composed of several key modules working together:
+
+![Repository Modules](../images/repo modules.png)
+
+### Core Modules
+
+1. **Authentication Module**
+   ![Auth Module](../images/Auth Module.png)
+
+2. **Cryptographic Module**
+   ![Crypto Module](../images/Crypto Module.png)
+
+3. **Database Module**
+   ![DB Module](../images/DB Module.png)
+
+4. **Utils Module**
+   ![Utils Module](../images/Utils Module.png)
+
+5. **Streamlit Interface**
+   ![StreamLit Module](../images/StreamLit Module.png)
+   
+### Database Structure
+![ER Diagram](../images/ER diagram.png)
 
 ## Overview
 
@@ -129,26 +159,46 @@ The application will be available at `http://localhost:8501`
 
 ## Architecture
 
-### Voting Flow
+### Voting Process Flow
 
-1. **Registration Phase**
+![Complete Voting Process](../images/Voting Process FLow.png)
+
+#### Detailed Process Flow
+
+1. **Registration & Authentication**
+   ![OTP Flow](../images/OTP FLOW.png)
    - Voter registers via OAuth
+   - OTP verification for secure authentication
    - Stored in voters table with `has_voted=False`
 
-2. **Token Request Phase**
+2. **Vote Casting System**
+   ![Cast Vote Module](../images/cast vote module.png)
    - Voter generates blind signature request
-   - Voting Authority issues blind signature without seeing voter identity
+   - Voting Authority issues blind signature
    - One-time token created for vote submission
 
-3. **Casting Phase**
-   - Voter selects candidate
-   - Vote encrypted with ballot authority's public key
-   - Token submitted alongside encrypted vote
-
-4. **Mixing Phase**
+3. **Mix Network Operation**
+   ![Mixnet Flow](../images/Mixnet Flow.png)
    - Verifiable Mix Network shuffles ballots
-   - Output linked to neither voter nor original ballot
-   - Tally conducted on mixed results
+   - Ensures vote anonymity
+   - Prevents vote tracking
+
+### System Demonstrations
+
+1. **Admin Interface Demo**
+   ![Admin Interface](../images/AdminFunction.gif)
+   
+2. **Platform Overview**
+   ![Platform Overview](../images/Platform_View_Demo.gif)
+   
+3. **Mix Network Demo**
+   ![Mix Network Demo](../images/MixNet_Demo.gif)
+   
+4. **Vote Casting Demo**
+   ![Vote Casting](../images/VoteCast.gif)
+
+### Detailed System Interaction
+![Complete System Interaction](../images/Big Complete Seq Diagram.png)
 
 ### Role-Based Access Control (RBAC)
 
