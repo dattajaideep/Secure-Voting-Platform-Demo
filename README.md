@@ -34,6 +34,9 @@ Table of contents
 Project snapshot / Demo
 
 ![StreamLit Module](/images/VoteCast.gif)
+![StreamLit Module](/images/AdminFunction.gif)
+![StreamLit Module](/images/MixNet_Demo.gif)
+![StreamLit Module](/images/Platform_View_Demo.gif)
 
 System architecture overview
 
